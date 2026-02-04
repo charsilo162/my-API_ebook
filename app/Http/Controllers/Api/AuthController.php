@@ -5,59 +5,86 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CourseResource;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use App\Services\CloudinaryService;
+use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use App\Services\CloudinaryService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+
 class AuthController extends Controller
 {
-    protected $cloudinaryService;
-    public function __construct(CloudinaryService $cloudinaryService)
-        {
-            $this->cloudinaryService = $cloudinaryService;
-        }
+    protected $cloudinary;
+
+    public function __construct(CloudinaryService $cloudinary)
+    {
+        $this->cloudinary = $cloudinary;
+    }
+
     public function register(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'type' => 'required|in:user,center,tutor',
-            'password' => 'required|min:6|confirmed',
-            'photo' => 'nullable|image|max:2048', 
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'required|string|max:255',
+            'email'      => 'required|string|email|unique:users',
+            'password'   => 'required|string|min:8',
+            'role'       => 'required|in:user,vendor',
+            // Optional Vendor Fields
+            'store_name' => 'required_if:role,vendor|nullable|string|unique:vendors,store_name',
+            'bio'        => 'nullable|string',
+            'photo'      => 'nullable|image|max:2048'
         ]);
+            log::info('Registering new user', [
+                        'email' => $request->email,
+                        'role'  => $request->role,
+                        'request_all' => $request->all(),
+                    ]);
+        return DB::transaction(function () use ($request) {
+            
+            // 1. Upload Photo if present
+            $photoPath = null;
+            if ($request->hasFile('photo')) {
+                $photoPath = $this->cloudinary->uploadFile($request->file('photo'), 'profiles');
+            }
 
-        $userData = [
-            'name' => $data['name'],
-            'type' => $data['type'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-        ];
-        
-        if ($request->hasFile('photo')) {
-            // Upload to Cloudinary using our reusable service
-            $userData['photo_path'] = $this->cloudinaryService->uploadFile(
-                $request->file('photo'), 
-                'profile_photos'
-            ); 
-        }
+            // 2. Create Core User
+           $user = User::create([
+                    'name'       => $request->first_name . ' ' . $request->last_name, // Combine them here
+                    'first_name' => $request->first_name,
+                    'last_name'  => $request->last_name,
+                    'email'      => $request->email,
+                    'phone'      => $request->phone,
+                    'password'   => Hash::make($request->password),
+                    'photo_path' => $photoPath,
+                    'type'       => $request->role, 
+                ]);
 
-        $user = User::create($userData);
-        $token = $user->createToken('api')->plainTextToken;
+            // 3. Create Vendor Profile if role is vendor
+            if ($request->role === 'vendor') {
+                $user->vendorProfile()->create([
+                    'store_name' => $request->store_name,
+                    'bio'        => $request->bio,
+                    'balance'    => 0.00
+                ]);
+            }
 
-        return response()->json([
-            'user' => new UserResource($user),
-            'token' => $token,
-        ], 200);
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'access_token' => $token,
+                'token_type'   => 'Bearer',
+                'user'         => $user->load('vendorProfile')
+            ], 201);
+        });
     }
    public function updateProfile(Request $request)
         {
             $user = $request->user();
-//  Log::info('Incoming user request', [
-//     'data'  => $request->all(),
-//     'files' => $request->file(),
-// ]);
+            //  Log::info('Incoming user request', [
+            //     'data'  => $request->all(),
+            //     'files' => $request->file(),
+            // ]);
 
             $data = $request->validate([
                 'name'     => 'sometimes|string|max:255',
@@ -123,7 +150,7 @@ class AuthController extends Controller
         // \Log::alert('API LOGOUT HIT — USER ID: ' . auth()->id());
         // \Log::info('Tokens before delete:', ['count' => auth()->user()->tokens()->count()]);
 
-        auth()->user()->tokens()->delete();
+        Auth::user()->tokens()->delete();
 
     
 

@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BookController;
+use App\Http\Controllers\Api\BookshopController;
 use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\VideoController;
 use App\Http\Controllers\Api\CategoryController;
@@ -23,6 +25,7 @@ use App\Http\Controllers\Api\VendorApiController;
 
     // Categories & Centers (public)
     Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/books', [BookController::class, 'index']);
     Route::get('/categories/count', [CategoryController::class, 'count']);
     Route::get('/categories/{category}', [CategoryController::class, 'show']); // GET /api/categories/{id} (single)
 
@@ -51,13 +54,18 @@ use App\Http\Controllers\Api\VendorApiController;
     Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
 
 
-    Route::get('/vendor/profile', [VendorApiController::class, 'profile']);
+
+
+
+Route::prefix('vendor')->group(function () {
+        Route::get('/profile', [VendorApiController::class, 'profile']);
+        Route::post('/update-profile', [VendorApiController::class, 'updateProfile']); // New
+        Route::get('/shops', [VendorApiController::class, 'listShops']);
+        Route::post('/shops', [VendorApiController::class, 'addShop']);
+        Route::delete('/shops/{bookshop}', [VendorApiController::class, 'deleteShop']);
+    });
     Route::post('/vendor/register', [VendorApiController::class, 'registerVendor']);
 
-    // Bookshop Management (Physical Locations)
-    Route::get('/vendor/shops', [VendorApiController::class, 'listShops']);
-    Route::post('/vendor/shops', [VendorApiController::class, 'addShop']);
-    Route::delete('/vendor/shops/{bookshop}', [VendorApiController::class, 'deleteShop']);
 
 
 
@@ -65,14 +73,15 @@ Route::post('/logout', [AuthController::class, 'logout']);
 Route::get('/me/enrolled-courses', [AuthController::class, 'enrolledCourses']);
 Route::put('/me/profile', [AuthController::class, 'updateProfile']);
     // Route::post('/me/profile', [AuthController::class, 'updateProfile']);
-
+Route::apiResource('bookshops', BookshopController::class);
 
 
     Route::middleware('auth:sanctum')->post('/payment/initialize', [PaymentController::class, 'initialize']);
     // ONLY LOGGED-IN USERS CAN POST COMMENTS
     Route::get('stats', [StatsController::class, 'index']);     // ← PROTECTED
     Route::post('comments', [CommentController::class, 'store']);     // ← PROTECTED
-
+    Route::post('/books', [BookController::class, 'store']);
+    Route::get('/books/{id}', [BookController::class, 'show']);
     // Likes & Shares (require login)
     Route::post('likes/toggle', [LikeController::class, 'toggle']);
     Route::post('shares', [ShareController::class, 'store']);

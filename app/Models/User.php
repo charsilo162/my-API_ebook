@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -11,14 +12,17 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory,HasApiTokens, Notifiable;
+    use HasFactory,HasApiTokens, Notifiable,HasUuid;
 
     protected $fillable = [
-        'name',
-        'email',
-        'type',
-        'photo_path',
-        'password',
+    'name',
+    'first_name',
+    'last_name',
+    'email',
+    'password',
+    'phone',
+    'photo_path',
+    'type',
     ];
 
     protected $hidden = [
@@ -33,12 +37,12 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-/**
-     * Check if the user is an admin.
-     *
-     * @return bool
-     */
-  
+    /**
+         * Check if the user is an admin.
+         *
+         * @return bool
+         */
+    
     /**
      * Get all likes made by the User.
      */
@@ -65,7 +69,7 @@ class User extends Authenticatable
 
 
  
-// app/Models/User.php
+
         public function library()
         {
             return $this->hasMany(UserLibrary::class);
@@ -84,5 +88,25 @@ class User extends Authenticatable
         {
             return $this->hasMany(Order::class);
         }
+
+        /**
+ * Check if the user has purchased a specific book variant.
+ * * @param int|string $variantId
+ * @return bool
+ */
+    public function hasPurchased($variantId): bool
+            {
+                // Option A: Check the UserLibrary table (Recommended)
+                // This assumes your UserLibrary table has a 'book_variant_id' column
+                return $this->library()->where('book_variant_id', $variantId)->exists();
+                
+                /* // Option B: If you prefer checking through Orders:
+                return $this->orders()
+                    ->where('status', 'completed')
+                    ->whereHas('items', function($query) use ($variantId) {
+                        $query->where('book_variant_id', $variantId);
+                    })->exists();
+                */
+            }
 
 }

@@ -1,37 +1,58 @@
 <?php
 namespace App\Models;
 
-
+use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-
 use Illuminate\Database\Eloquent\Model;
-
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-
+use Illuminate\Support\Str;
 
 class Book extends Model
 
 {
 
-    use HasFactory;
+    use HasFactory,HasUuid;
 
     protected $fillable = [
-            'name',
-            'address',
-            'city',
+            'uuid',   
+            'vendor_id',   
+            'category_id', 
+            'title',       
+            'slug',        
+            'author_name', 
             'description',
-            'years_of_experience',
-            'center_thumbnail_url',
-];
-    /**
+            'cover_image', 
+        ];
 
-     * Get the courses physically offered by the Center.
+        
 
-     */
+        protected static function booted()
+        {
+            static::creating(function ($model) {
+                if (!$model->uuid) {
+                    $model->uuid = Str::uuid();
+                }
+            });
+        }
+    // protected static function boot()
+    // {
+    //     parent::boot();
+    //     static::creating(fn($c) => $c->slug = Str::slug($c->title));
+    //     static::updating(function ($c) {
+    //         if ($c->isDirty('title')) $c->slug = Str::slug($c->title);
+    //     });
+    // }
+    public function getRouteKeyName()
+        {
+            return 'uuid';
+        }
 
-                // app/Models/Book.php
+    public function vendor()
+        {
+            // Based on your Vendor model, a Vendor hasMany Books
+            return $this->belongsTo(Vendor::class, 'vendor_id');
+        }
             public function category()
             {
                 return $this->belongsTo(Category::class);

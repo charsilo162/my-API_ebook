@@ -9,7 +9,9 @@ use App\Models\Book;
 use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Auth as FacadesAuth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class BookController extends Controller
@@ -57,105 +59,237 @@ class BookController extends Controller
 
         return BookResource::collection($query->paginate($request->query('per_page', 10)));
     }
-
-   public function store(StoreBookRequest $request)
-{
-    // The data is already validated here
-    $data = $request->validated();
-
-        return DB::transaction(function () use ($request, $data) {
-            // 1. Upload Cover Image
-            $coverUrl = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
-
-            // 2. Create Book Record
-            $book = Book::create([
-                'vendor_id'   => Auth::id(), // Assuming vendor is logged in
-                'category_id' => $data['category_id'],
-                'title'       => $data['title'],
-                'author_name' => $data['author_name'],
-                'description' => $data['description'],
-                'cover_image' => $coverUrl,
-            ]);
-
-            // 3. Create Variants (Digital and/or Physical)
-            foreach ($data['variants'] as $index => $variantData) {
-                $filePath = null;
-                
-                // If digital, upload the book file
-                if ($variantData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
-                    $filePath = $this->cloudinaryService->uploadFile($request->file("variants.{$index}.file"), 'books/files');
-                }
-
-                $book->variants()->create([
-                    'type'           => $variantData['type'],
-                    'price'          => $variantData['price'],
-                    'discount_price' => $variantData['discount_price'] ?? null,
-                    'stock_quantity' => $variantData['type'] === 'digital' ? -1 : ($variantData['stock'] ?? 0),
-                    'file_path'      => $filePath,
-                ]);
-            }
-
-            return new BookResource($book->load('variants'));
-        });
-    }
-
-    public function update(UpdateBookRequest $request, Book $book)
-    {
-            // The data is already validated here
+public function store(StoreBookRequest $request)
+        {
+             Log::info('validation date',$request->all());
+             Log::info('Files in request:', $request->allFiles());
             $data = $request->validated();
-                    return DB::transaction(function () use ($request, $data, $book) {
-                        
-                        $payload = collect($data)->only(['category_id', 'title', 'author_name', 'description'])->toArray();
 
-                // 1. Handle Cover Image Update
-                if ($request->hasFile('cover_image')) {
-                    // Delete old one
-                    if ($book->cover_image) {
-                        $this->cloudinaryService->deleteFile($book->cover_image);
-                    }
-                    $payload['cover_image'] = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
+           
+
+            // Check if any variant is 'physical' to enforce the bookshop rule
+            $hasPhysicalVariant = collect($data['variants'])->contains('type', 'physical');
+
+            if ($hasPhysicalVariant) {
+                $hasShop = Auth::user()->vendorProfile->bookshops()->exists();
+                if (!$hasShop) {
+                    return response()->json([
+                        'message' => 'You must register a physical bookshop location before listing physical books.'
+                    ], 422);
                 }
+            }
+               
+            return DB::transaction(function () use ($request, $data) {
+                // 1. Upload Cover Image
+                $coverUrl = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
 
-                $book->update($payload);
+                // 2. Create Book Record
+                $book = Book::create([
+                    'vendor_id'   => Auth::id(),
+                    'category_id' => $data['category_id'],
+                    'title'       => $data['title'],
+                    'slug'        => Str::slug($data['title']) . '-' . time(), // Added for unique URLs
+                    'author_name' => $data['author_name'],
+                    'description' => $data['description'],
+                    'cover_image' => $coverUrl,
+                ]);
 
-                // 2. Handle Variants Update
-                if (isset($data['variants'])) {
-                    foreach ($data['variants'] as $index => $vData) {
-                        
-                        $variantPayload = [
-                            'type'           => $vData['type'],
-                            'price'          => $vData['price'],
-                            'discount_price' => $vData['discount_price'] ?? null,
-                            'stock_quantity' => $vData['type'] === 'digital' ? -1 : ($vData['stock'] ?? 0),
-                        ];
-
-                        // If a new digital file is uploaded
-                        if ($vData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
-                            $variantPayload['file_path'] = $this->cloudinaryService->uploadFile(
-                                $request->file("variants.{$index}.file"), 
-                                'books/files'
-                            );
-                        }
-
-                        // Update existing variant or create a new one
-                        if (isset($vData['id'])) {
-                            $existingVariant = $book->variants()->find($vData['id']);
-                            
-                            // Cleanup old file if replacing digital file
-                            if (isset($variantPayload['file_path']) && $existingVariant->file_path) {
-                                $this->cloudinaryService->deleteFile($existingVariant->file_path);
-                            }
-                            
-                            $existingVariant->update($variantPayload);
-                        } else {
-                            $book->variants()->create($variantPayload);
-                        }
+                // 3. Create Variants
+                foreach ($data['variants'] as $index => $variantData) {
+                    $filePath = null;
+                    
+                    if ($variantData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
+                        $filePath = $this->cloudinaryService->uploadFile($request->file("variants.{$index}.file"), 'books/files');
                     }
-                }
 
-                return new BookResource($book->load('variants'));
+                    $book->variants()->create([
+                        'type'           => $variantData['type'],
+                        'price'          => $variantData['price'],
+                        'discount_price' => $variantData['discount_price'] ?? null,
+                        'stock_quantity' => $variantData['type'] === 'digital' ? -1 : ($variantData['stock'] ?? 0),
+                        'file_path'      => $filePath,
+                    ]);
+                }
+                return new BookResource($book->load(['variants', 'category', 'vendor']));
+                //return new BookResource($book->load('variants'));
             });
         }
+   //public function store(StoreBookRequest $request)
+        // {
+        //     // The data is already validated here
+        //     $data = $request->validated();
+
+        //     if ($request->type === 'physical') {
+        //         $hasShop = Auth::user()->vendorProfile->bookshops()->exists();
+                
+        //         if (!$hasShop) {
+        //             return response()->json([
+        //                 'message' => 'You must register a physical bookshop location before listing physical books.'
+        //             ], 422);
+        //         }
+        //     }
+
+        //         return DB::transaction(function () use ($request, $data) {
+        //             // 1. Upload Cover Image
+        //             $coverUrl = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
+
+        //             // 2. Create Book Record
+        //             $book = Book::create([
+        //                 'vendor_id'   => Auth::id(), // Assuming vendor is logged in
+        //                 'category_id' => $data['category_id'],
+        //                 'title'       => $data['title'],
+        //                 'author_name' => $data['author_name'],
+        //                 'description' => $data['description'],
+        //                 'cover_image' => $coverUrl,
+        //             ]);
+
+        //             // 3. Create Variants (Digital and/or Physical)
+        //             foreach ($data['variants'] as $index => $variantData) {
+        //                 $filePath = null;
+                        
+        //                 // If digital, upload the book file
+        //                 if ($variantData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
+        //                     $filePath = $this->cloudinaryService->uploadFile($request->file("variants.{$index}.file"), 'books/files');
+        //                 }
+
+        //                 $book->variants()->create([
+        //                     'type'           => $variantData['type'],
+        //                     'price'          => $variantData['price'],
+        //                     'discount_price' => $variantData['discount_price'] ?? null,
+        //                     'stock_quantity' => $variantData['type'] === 'digital' ? -1 : ($variantData['stock'] ?? 0),
+        //                     'file_path'      => $filePath,
+        //                 ]);
+        //             }
+
+        //             return new BookResource($book->load('variants'));
+        //         });
+        //     }
+
+    
+            // public function update(UpdateBookRequest $request, Book $book)
+        //      {
+        //     // The data is already validated here
+        //     $data = $request->validated();
+        //             return DB::transaction(function () use ($request, $data, $book) {
+                        
+        //                 $payload = collect($data)->only(['category_id', 'title', 'author_name', 'description'])->toArray();
+
+        //         // 1. Handle Cover Image Update
+        //         if ($request->hasFile('cover_image')) {
+        //             // Delete old one
+        //             if ($book->cover_image) {
+        //                 $this->cloudinaryService->deleteFile($book->cover_image);
+        //             }
+        //             $payload['cover_image'] = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
+        //         }
+
+        //         $book->update($payload);
+
+        //         // 2. Handle Variants Update
+        //         if (isset($data['variants'])) {
+        //             foreach ($data['variants'] as $index => $vData) {
+                        
+        //                 $variantPayload = [
+        //                     'type'           => $vData['type'],
+        //                     'price'          => $vData['price'],
+        //                     'discount_price' => $vData['discount_price'] ?? null,
+        //                     'stock_quantity' => $vData['type'] === 'digital' ? -1 : ($vData['stock'] ?? 0),
+        //                 ];
+
+        //                 // If a new digital file is uploaded
+        //                 if ($vData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
+        //                     $variantPayload['file_path'] = $this->cloudinaryService->uploadFile(
+        //                         $request->file("variants.{$index}.file"), 
+        //                         'books/files'
+        //                     );
+        //                 }
+
+        //                 // Update existing variant or create a new one
+        //                 if (isset($vData['id'])) {
+        //                     $existingVariant = $book->variants()->find($vData['id']);
+                            
+        //                     // Cleanup old file if replacing digital file
+        //                     if (isset($variantPayload['file_path']) && $existingVariant->file_path) {
+        //                         $this->cloudinaryService->deleteFile($existingVariant->file_path);
+        //                     }
+                            
+        //                     $existingVariant->update($variantPayload);
+        //                 } else {
+        //                     $book->variants()->create($variantPayload);
+        //                 }
+        //             }
+        //         }
+
+        //         return new BookResource($book->load('variants'));
+        //     });
+        // }
+
+
+        public function update(UpdateBookRequest $request, Book $book)
+            {
+                $data = $request->validated();
+
+                return DB::transaction(function () use ($request, $data, $book) {
+                    
+                    $payload = collect($data)->only(['category_id', 'title', 'author_name', 'description'])->toArray();
+
+                    // Update Slug if title changes
+                    if (isset($data['title']) && $data['title'] !== $book->title) {
+                        $payload['slug'] = Str::slug($data['title']) . '-' . time();
+                    }
+
+                    // 1. Handle Cover Image Update
+                    if ($request->hasFile('cover_image')) {
+                        if ($book->cover_image) {
+                            $this->cloudinaryService->deleteFile($book->cover_image);
+                        }
+                        $payload['cover_image'] = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
+                    }
+
+                    $book->update($payload);
+
+                    // 2. Handle Variants Update & Sync
+                    if (isset($data['variants'])) {
+                        $keepVariantIds = [];
+
+                        foreach ($data['variants'] as $index => $vData) {
+                            $variantPayload = [
+                                'type'           => $vData['type'],
+                                'price'          => $vData['price'],
+                                'discount_price' => $vData['discount_price'] ?? null,
+                                'stock_quantity' => $vData['type'] === 'digital' ? -1 : ($vData['stock'] ?? 0),
+                            ];
+
+                            // Digital File handling
+                            if ($vData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
+                                $variantPayload['file_path'] = $this->cloudinaryService->uploadFile(
+                                    $request->file("variants.{$index}.file"), 
+                                    'books/files'
+                                );
+                            }
+
+                            if (isset($vData['id'])) {
+                                $existingVariant = $book->variants()->find($vData['id']);
+                                
+                                if (isset($variantPayload['file_path']) && $existingVariant->file_path) {
+                                    $this->cloudinaryService->deleteFile($existingVariant->file_path);
+                                }
+                                
+                                $existingVariant->update($variantPayload);
+                                $keepVariantIds[] = $existingVariant->id;
+                            } else {
+                                $newVariant = $book->variants()->create($variantPayload);
+                                $keepVariantIds[] = $newVariant->id;
+                            }
+                        }
+
+                        // DELETE variants that were removed from the UI
+                        $book->variants()->whereNotIn('id', $keepVariantIds)->delete();
+                    }
+
+                    return new BookResource($book->refresh()->load('variants'));
+                });
+            }
 
 
     public function show(Book $book)

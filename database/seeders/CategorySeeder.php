@@ -1,15 +1,14 @@
 <?php
-namespace Database\Factories;
+
+namespace Database\Seeders;
 
 use App\Models\Category;
-use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
-class CategoryFactory extends Factory
+class CategorySeeder extends Seeder
 {
-    protected $model = Category::class;
-
-    public function definition(): array
+    public function run(): void
     {
         $categories = [
             'Fiction',
@@ -46,12 +45,11 @@ class CategoryFactory extends Factory
             'Comics & Graphic Novels',
         ];
 
-        $name = $this->faker->unique()->randomElement($categories);
-
-        return [
-            'name' => $name,
-            // add random string to guarantee uniqueness even if seeding many times
-            'slug' => Str::slug($name) . '-' . Str::random(5),
-        ];
+        foreach ($categories as $name) {
+            Category::firstOrCreate(
+                ['slug' => Str::slug($name)],
+                ['name' => $name]
+            );
+        }
     }
 }

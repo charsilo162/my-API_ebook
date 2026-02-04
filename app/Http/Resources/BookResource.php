@@ -23,9 +23,9 @@ class BookResource extends JsonResource
             
             'created_at' => $this->created_at->format('Y-m-d'),
             'vendor' => [
-                'id' => $this->vendor->id,
-                'store_name' => $this->vendor->store_name,
-            ],
+                    'id' => $this->vendor?->id, // Added the '?' null-safe operator
+                    'store_name' => $this->vendor?->store_name ?? 'Unknown Store',
+                ],
         ];
     }
 }

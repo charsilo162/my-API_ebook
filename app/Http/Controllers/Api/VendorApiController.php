@@ -48,15 +48,37 @@ class VendorApiController extends Controller
 
         return response()->json(['message' => 'Vendor profile created successfully', 'vendor' => $vendor]);
     }
+        /**
+     * Update the authenticated vendor's profile
+     */
+    public function updateProfile(Request $request)
+        {
+        $vendor = Auth::user()->vendorProfile;
 
+        $data = $request->validate([
+            // Exclude current vendor ID from unique check so it doesn't fail if the name isn't changed
+            'store_name' => 'required|string|unique:vendors,store_name,' . $vendor->id,
+            'bio'        => 'nullable|string',
+        ]);
+
+        $vendor->update($data);
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'vendor' => $vendor
+        ]);
+    }
     /**
      * List all bookshops for the vendor
      */
-    public function listShops()
-    {
-        $shops = Auth::user()->vendorProfile->bookshops;
-        return response()->json($shops);
-    }
+ public function listShops()
+{
+    // Correct way: Access the vendor profile first
+    $vendor = Auth::user()->vendorProfile;
+    
+    // This will now correctly use 'vendor_id' to find the shops
+    return response()->json($vendor->bookshops);
+}
 
     /**
      * Add a physical shop location

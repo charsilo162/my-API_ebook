@@ -27,14 +27,7 @@ class BookVariant extends Model
         'file_path',
         'bookshop_id',
         ];
-protected static function boot()
-    {
-        parent::boot();
-        static::creating(fn($c) => $c->slug = Str::slug($c->title));
-        static::updating(function ($c) {
-            if ($c->isDirty('title')) $c->slug = Str::slug($c->title);
-        });
-    }
+
     // app/Models/BookVariant.php
             public function book()
             {

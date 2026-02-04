@@ -1,39 +1,30 @@
 <?php
-
 namespace App\Models;
 
+use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Vendor extends Model
 {
-    use HasFactory;
+    use HasFactory,HasUuid;
 
-    /**
-     * Get the Course this vendor belongs to.
-     */
+    // A Vendor is a profile for a User
+    protected $fillable = ['user_id', 'store_name', 'bio', 'balance'];
 
-        protected $fillable = [
-            'user_id',
-            'store_name',
-            'bio',
-            'balance',
-            ];
- // app/Models/Vendor.php
-        public function books()
-        {
-            return $this->hasMany(Book::class);
-        }
+    public function books()
+    {
+        return $this->hasMany(Book::class);
+    }
 
-        public function bookshops()
-        {
-            return $this->hasMany(Bookshop::class);
-        }
+    // A Vendor has many Physical Branches (Bookshops)
+    public function bookshops()
+    {
+        return $this->hasMany(Bookshop::class, 'vendor_id'); 
+    }
 
-        // app/Models/Bookshop.php
-        public function vendor()
-        {
-            return $this->belongsTo(Vendor::class);
-        }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

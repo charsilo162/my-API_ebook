@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('vendor_id')->constrained()->onDelete('cascade');
             $table->string('shop_name');
+            $table->string('phone')->nullable();
             $table->string('address');
             $table->string('city');
             $table->timestamps();

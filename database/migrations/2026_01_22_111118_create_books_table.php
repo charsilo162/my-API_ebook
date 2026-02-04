@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('vendor_id')->constrained()->onDelete('cascade');
             $table->foreignId('category_id')->constrained();
             $table->string('title');
+            $table->string('slug');
             $table->string('author_name');
             $table->text('description');
             $table->string('cover_image');
