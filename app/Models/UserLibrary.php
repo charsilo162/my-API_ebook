@@ -17,6 +17,9 @@ class UserLibrary extends Model
         'book_variant_id',
         'purchased_at',
     ];
+    protected $casts = [
+    'purchased_at' => 'datetime',
+];
         // app/Models/UserLibrary.php
         public function user()
         {

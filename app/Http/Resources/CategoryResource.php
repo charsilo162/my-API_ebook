@@ -10,6 +10,7 @@ class CategoryResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'uuid' => $this->uuid,
             'name' => $this->name,
             'slug' => $this->slug,
             'thumbnail' => $this->thumbnail_url ?? 'https://via.placeholder.com/150',

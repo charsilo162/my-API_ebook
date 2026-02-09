@@ -10,7 +10,7 @@ class StoreBookRequest extends FormRequest
         return true; // Ensure you handle actual authorization logic later
     }
 
-   public function rules()
+  public function rules()
         {
             return [
                 'category_id' => 'required|exists:categories,id',
@@ -19,40 +19,52 @@ class StoreBookRequest extends FormRequest
                 'description' => 'required|string',
                 'cover_image' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
                 
-                'variants'                  => 'required|array|min:1',
-                'variants.*.type'           => 'required|in:digital,physical',
+                'variants'          => 'required|array|min:1|max:2', // Max 2 because only Digital + Physical are possible
+                
+                // This 'distinct' ensures no two variants have the same 'type'
+                'variants.*.type'   => 'required|in:digital,physical|distinct', 
+                
                 'variants.*.price'          => 'required|numeric|min:0',
                 'variants.*.discount_price' => 'nullable|numeric|lt:variants.*.price',
-                'variants.*.stock'          => 'nullable|required_if:variants.*.type,physical|integer',
+                'variants.*.stock'          => 'nullable|required_if:variants.*.type,physical|integer|min:0',
 
-                // Updated File Rule
-                'variants.*.file' => [
-                    'nullable',
-                    'file',
-                    'mimes:pdf,epub',
-                    'max:10000',
-                    function ($attribute, $value, $fail) {
-                        // This logic finds the index (0, 1, 2...) of the current variant
-                        preg_match('/variants\.(\d+)\.file/', $attribute, $matches);
-                        $index = $matches[1] ?? null;
+               'variants.*.file' => [
+                            'nullable',
+                            // Remove 'file' and 'mimes' briefly to see if it's the mime-type detection failing
+                            function ($attribute, $value, $fail) {
+                                preg_match('/variants\.(\d+)\.file/', $attribute, $matches);
+                                $index = $matches[1] ?? null;
+                                $type = $this->input("variants.{$index}.type");
 
-                        // Check if this specific variant is digital
-                        $type = $this->input("variants.{$index}.type");
+                                // 1. Validation for Digital Type
+                                if ($type === 'digital') {
+                                    // Check if a file exists in the request
+                                    if (!$this->hasFile("variants.{$index}.file")) {
+                                        $fail('An E-book file (PDF/EPUB) is required for the digital version.');
+                                        return;
+                                    }
 
-                        // If it is digital but no file is found in the input or the request files
-                        if ($type === 'digital' && !$value && !$this->hasFile("variants.{$index}.file")) {
-                            $fail('The digital book file is required for the soft copy version.');
-                        }
-                    },
-                ],
+                                    // 2. Manual Mime-type Check (More reliable for streams)
+                                    $file = $this->file("variants.{$index}.file");
+                                    $allowedMimes = ['application/pdf', 'application/epub+zip'];
+                                    
+                                    if (!in_array($file->getMimeType(), $allowedMimes)) {
+                                        $fail("The variant $index file must be a PDF or EPUB (Detected: " . $file->getMimeType() . ")");
+                                    }
+                                }
+                            },
+                        ],
             ];
         }
 
-    public function messages()
-    {
-        return [
-            'variants.*.file.required_if' => 'The digital book file is required for the soft copy version.',
-            'variants.*.discount_price.lt' => 'The discount price must be lower than the original price.',
-        ];
-    }
+        public function messages()
+        {
+            return [
+                'variants.*.type.distinct' => 'You cannot add the same format (Physical or Digital) more than once.',
+                'variants.*.discount_price.lt' => 'Discount price must be less than the regular price.',
+                'variants.*.stock.required_if' => 'Stock quantity is required for physical books.',
+            ];
+        }
+
+
 }

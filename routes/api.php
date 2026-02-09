@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\ShareController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\UserLibraryController;
 use App\Http\Controllers\Api\VendorApiController;
+use App\Http\Controllers\Api\VendorOrderController;
+
 
     // ====================================
     // PUBLIC ROUTES (NO LOGIN REQUIRED)
@@ -26,6 +28,8 @@ use App\Http\Controllers\Api\VendorApiController;
     // Categories & Centers (public)
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/books', [BookController::class, 'index']);
+    Route::get('/books/{book:uuid}', [BookController::class, 'show']);
+    //  Route::get('/books/{uuid}', [BookController::class, 'show']);
     Route::get('/categories/count', [CategoryController::class, 'count']);
     Route::get('/categories/{category}', [CategoryController::class, 'show']); // GET /api/categories/{id} (single)
 
@@ -44,9 +48,9 @@ use App\Http\Controllers\Api\VendorApiController;
         Route::post('/login', [AuthController::class, 'login']);
         Route::post('/register', [AuthController::class, 'register']);
 
-        Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook']);
-        Route::get('/payment/callback', [PaymentController::class, 'callback'])->name('payment.callback');
-        // ====================================
+        // Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook']);
+        // Route::get('/payment/callback', [PaymentController::class, 'callback'])->name('payment.callback');
+        // // ====================================
         // PROTECTED ROUTES (REQUIRES LOGIN)
         // ====================================
     Route::middleware('auth:sanctum')->group(function () {
@@ -81,7 +85,7 @@ Route::apiResource('bookshops', BookshopController::class);
     Route::get('stats', [StatsController::class, 'index']);     // ← PROTECTED
     Route::post('comments', [CommentController::class, 'store']);     // ← PROTECTED
     Route::post('/books', [BookController::class, 'store']);
-    Route::get('/books/{id}', [BookController::class, 'show']);
+   
     // Likes & Shares (require login)
     Route::post('likes/toggle', [LikeController::class, 'toggle']);
     Route::post('shares', [ShareController::class, 'store']);
@@ -93,29 +97,27 @@ Route::apiResource('bookshops', BookshopController::class);
 
 
 
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // Vendor Specific Routes
+    Route::prefix('vendor')->group(function () {
+        Route::get('/orders', [VendorOrderController::class, 'index']);
+        Route::patch('/orders/{id}/status', [VendorOrderController::class, 'updateStatus']);
+    });
 
-
-use App\Services\CloudinaryService;
-
-Route::get('/test-cloudinary', function (CloudinaryService $service) {
-    try {
-        // We attempt to call the Cloudinary API to get account details
-        // This is the fastest way to verify if your keys are working
-        $authCheck = $service->uploadFile(
-            'https://cloudinary-devs.github.io/cld-docs-assets/assets/images/happy_dog.jpg',
-            'testing'
-        );
-
-        return response()->json([
-            'status' => 'Success!',
-            'message' => 'Cloudinary is configured correctly.',
-            'uploaded_url' => $authCheck
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'Error',
-            'message' => $e->getMessage()
-        ], 500);
-    }
+    // Customer Specific Routes
+    Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
 });
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Library Endpoints
+    Route::get('/library', [UserLibraryController::class, 'index']);
+    Route::get('/library/{libraryItem}/download', [UserLibraryController::class, 'download']);
+
+    // Payment Endpoints
+    Route::post('/payments/initialize', [PaymentApiController::class, 'initialize']);
+});
+
+// The Callback is usually a GET request from Paystack
+Route::get('/payments/callback', [PaymentApiController::class, 'callback'])->name('payment.callback');

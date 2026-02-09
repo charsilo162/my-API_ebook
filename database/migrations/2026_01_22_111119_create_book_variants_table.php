@@ -20,6 +20,7 @@ return new class extends Migration
             $table->integer('stock_quantity')->default(0); // Use -1 or high number for digital
             $table->string('file_path')->nullable(); // For PDF/Epub download
             $table->foreignId('bookshop_id')->nullable()->constrained(); // Link to a specific shop if physical
+            $table->unique(['book_id', 'type']);
             $table->timestamps();
         });
     }

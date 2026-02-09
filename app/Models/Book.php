@@ -13,7 +13,13 @@ class Book extends Model
 {
 
     use HasFactory,HasUuid;
-
+   protected function casts(): array
+    {
+        return [
+            'created_at' => 'date',
+       
+        ];
+    }
     protected $fillable = [
             'uuid',   
             'vendor_id',   
@@ -46,8 +52,7 @@ class Book extends Model
     public function getRouteKeyName()
         {
             return 'uuid';
-        }
-
+        }        
     public function vendor()
         {
             // Based on your Vendor model, a Vendor hasMany Books
