@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\LikeController;
 use App\Http\Controllers\Api\PaymentApiController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ShareController;
+use App\Http\Controllers\Api\ShowcaseController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\UserLibraryController;
 use App\Http\Controllers\Api\VendorApiController;
@@ -22,12 +23,15 @@ use App\Http\Controllers\Api\VendorOrderController;
     // ====================================
     // PUBLIC ROUTES (NO LOGIN REQUIRED)
     // ====================================
-
+        Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
+            Route::get('/public/categories', [CategoryController::class, 'getCategories']);
     Route::get('/test', fn() => response()->json(['message' => 'API IS WORKING!']));
-
+Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
     // Categories & Centers (public)
     Route::get('/categories', [CategoryController::class, 'index']);
-    Route::get('/books', [BookController::class, 'index']);
+
+    // Route::get('/books', [BookController::class, 'index']);
+    Route::resource('books', BookController::class)->only(['index', 'show']);
     Route::get('/books/{book:uuid}', [BookController::class, 'show']);
     //  Route::get('/books/{uuid}', [BookController::class, 'show']);
     Route::get('/categories/count', [CategoryController::class, 'count']);
@@ -59,7 +63,9 @@ use App\Http\Controllers\Api\VendorOrderController;
 
 
 
-
+Route::middleware('auth:sanctum')->group(function () {
+    Route::delete('books/{book}', [BookController::class, 'destroy']);
+});
 
 Route::prefix('vendor')->group(function () {
         Route::get('/profile', [VendorApiController::class, 'profile']);
@@ -82,7 +88,6 @@ Route::apiResource('bookshops', BookshopController::class);
 
     Route::middleware('auth:sanctum')->post('/payment/initialize', [PaymentController::class, 'initialize']);
     // ONLY LOGGED-IN USERS CAN POST COMMENTS
-    Route::get('stats', [StatsController::class, 'index']);     // ← PROTECTED
     Route::post('comments', [CommentController::class, 'store']);     // ← PROTECTED
     Route::post('/books', [BookController::class, 'store']);
    
@@ -102,6 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Vendor Specific Routes
     Route::prefix('vendor')->group(function () {
         Route::get('/orders', [VendorOrderController::class, 'index']);
+        Route::get('/popular-books', [VendorOrderController::class, 'getPopularBooks']);
         Route::patch('/orders/{id}/status', [VendorOrderController::class, 'updateStatus']);
     });
 
@@ -114,7 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Library Endpoints
     Route::get('/library', [UserLibraryController::class, 'index']);
     Route::get('/library/{libraryItem}/download', [UserLibraryController::class, 'download']);
-
+    // Route::get('/stats', [StatsController::class, 'index']);
     // Payment Endpoints
     Route::post('/payments/initialize', [PaymentApiController::class, 'initialize']);
 });

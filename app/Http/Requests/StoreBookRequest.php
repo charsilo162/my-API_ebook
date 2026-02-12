@@ -27,7 +27,7 @@ class StoreBookRequest extends FormRequest
                 'variants.*.price'          => 'required|numeric|min:0',
                 'variants.*.discount_price' => 'nullable|numeric|lt:variants.*.price',
                 'variants.*.stock'          => 'nullable|required_if:variants.*.type,physical|integer|min:0',
-
+                'variants.*.bookshop_id' => 'nullable|required_if:variants.*.type,physical|exists:bookshops,id',
                'variants.*.file' => [
                             'nullable',
                             // Remove 'file' and 'mimes' briefly to see if it's the mime-type detection failing

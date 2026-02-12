@@ -119,4 +119,31 @@ class CategoryController extends Controller
 
         return response()->json(['message' => 'Category deleted successfully.']);
     }
+
+
+
+    public function getCategories()
+        {
+            // 1. Query only 8 random categories that actually have books
+            $categories = Category::withCount('books')
+                ->whereHas('books') 
+                ->inRandomOrder() 
+                ->limit(8)        
+                ->get()
+                ->map(function ($category) {
+                    return [
+                        'title' => $category->name,
+                        'count' => $category->books_count,
+                        
+                        'image' => $category->image_path 
+                            ? asset('storage/' . $category->image_path) 
+                            : asset('storage/images/d5.jpg'),
+                        'url' => url('/categories/' . $category->slug),
+                    ];
+                });
+
+            return response()->json(['categories' => $categories]);
+        }
+
+
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Http\Resources\OrderResource;
+use App\Models\Book;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -62,5 +63,34 @@ class VendorOrderController extends Controller
             ]);
         }
 
+
+public function getPopularBooks(Request $request) // Inject the request
+{
+    $vendorId = Auth::id();
+    
+    // Explicitly get the page number from the request
+    $page = $request->input('page', 1);
+   // \Log::info("Controller received page: " . $request->input('page'));
+
+    $paginatedBooks = Book::where('vendor_id', $vendorId)
+        ->with(['variants'])
+        ->withCount('orderItems as total_sales')
+        ->orderBy('total_sales', 'desc')
+        // Pass the page to the paginate method
+        ->paginate(10, ['*'], 'page', $page); 
+
+    $paginatedBooks->getCollection()->transform(function ($book) {
+        return [
+            'title' => $book->title,
+            'author' => $book->author_name,
+            'cover_image' => $book->cover_image ?: asset('storage/images/d7.jpg'),
+            'starting_price' => $book->variants->min('price') ?? 0,
+            'formats' => $book->variants->map(fn($v) => ['type' => $v->type]),
+            'sales_count' => (int) $book->total_sales,
+        ];
+    });
+
+    return response()->json($paginatedBooks);
+}
         
 }

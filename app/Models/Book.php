@@ -41,14 +41,7 @@ class Book extends Model
                 }
             });
         }
-    // protected static function boot()
-    // {
-    //     parent::boot();
-    //     static::creating(fn($c) => $c->slug = Str::slug($c->title));
-    //     static::updating(function ($c) {
-    //         if ($c->isDirty('title')) $c->slug = Str::slug($c->title);
-    //     });
-    // }
+
     public function getRouteKeyName()
         {
             return 'uuid';
@@ -62,11 +55,20 @@ class Book extends Model
             {
                 return $this->belongsTo(Category::class);
             }
-
+            public function userLibraries()
+                {
+                    // This assumes you have a table named 'library_book' or similar
+                    return $this->belongsToMany(User::class, 'user_libraries')->withTimestamps();
+                }
             public function variants()
             {
                 return $this->hasMany(BookVariant::class);
             }
+
+            public function orderItems()
+                {
+                    return $this->hasMany(OrderItem::class);
+                }
 
             // Helper to check if it has a digital version
             public function hasDigitalVersion()

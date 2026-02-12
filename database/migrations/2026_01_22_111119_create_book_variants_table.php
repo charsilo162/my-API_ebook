@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-     Schema::create('book_variants', function (Blueprint $table) {
+     Schema::create('book_variants', function (Blueprint $table) 
+     {
             $table->id();
             $table->foreignId('book_id')->constrained()->onDelete('cascade');
             $table->enum('type', ['digital', 'physical']); 
@@ -22,8 +23,11 @@ return new class extends Migration
             $table->foreignId('bookshop_id')->nullable()->constrained(); // Link to a specific shop if physical
             $table->unique(['book_id', 'type']);
             $table->timestamps();
-        });
-    }
+        }
+        
+        );
+    
+        }
 
     /**
      * Reverse the migrations.

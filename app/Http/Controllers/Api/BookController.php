@@ -120,9 +120,14 @@ class BookController extends Controller
                 foreach ($data['variants'] as $index => $variantData) {
                     $filePath = null;
                     
-                    if ($variantData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
-                        $filePath = $this->cloudinaryService->uploadFile($request->file("variants.{$index}.file"), 'books/files');
-                    }
+             if ($variantData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
+   
+                    $filePath = $this->cloudinaryService->uploadFile(
+                        $request->file("variants.{$index}.file"), 
+                        'books/files', 
+                        'raw' 
+                    );
+                }
 
                     $book->variants()->create([
                         'type'           => $variantData['type'],
@@ -130,6 +135,7 @@ class BookController extends Controller
                         'discount_price' => $variantData['discount_price'] ?? null,
                         'stock_quantity' => $variantData['type'] === 'digital' ? -1 : ($variantData['stock'] ?? 0),
                         'file_path'      => $filePath,
+                        'bookshop_id'    => $variantData['type'] === 'physical' ? ($variantData['bookshop_id'] ?? null) : null,
                     ]);
                 }
                 return new BookResource($book->load(['variants', 'category', 'vendor']));
@@ -138,11 +144,11 @@ class BookController extends Controller
         }
    
 
-   public function update(UpdateBookRequest $request, Book $book)
+    public function update(UpdateBookRequest $request, Book $book)
         {
             $data = $request->validated();
 
-            // Prevent duplicate types in the request before even touching the DB
+            // Prevent duplicate types in the request
             $types = collect($data['variants'])->pluck('type');
             if ($types->count() !== $types->unique()->count()) {
                 return response()->json(['message' => 'Duplicate variants detected.'], 422);
@@ -156,26 +162,28 @@ class BookController extends Controller
                     $payload['slug'] = Str::slug($data['title']) . '-' . time();
                 }
 
-                // Handle Cover Image
+                // Handle Cover Image (Normal Image)
                 if ($request->hasFile('cover_image')) {
                     if ($book->cover_image) {
-                        $this->cloudinaryService->deleteFile($book->cover_image);
+                        // Images use default 'image' type
+                        $this->cloudinaryService->deleteFile($book->cover_image, 'image');
                     }
                     $payload['cover_image'] = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
                 }
 
                 $book->update($payload);
 
-                // 2. Sync Variants (The Safe Way)
+                // 2. Sync Variants
                 if (isset($data['variants'])) {
                     $incomingVids = collect($data['variants'])->pluck('id')->filter()->toArray();
 
-                    // A. Delete variants that are no longer in the UI
-                    // Important: Do this first to free up 'type' slots in the DB
+                    // A. Delete removed variants
                     $variantsToDelete = $book->variants()->whereNotIn('id', $incomingVids)->get();
                     foreach ($variantsToDelete as $oldV) {
                         if ($oldV->file_path) {
-                            $this->cloudinaryService->deleteFile($oldV->file_path);
+                            // CRITICAL: If it was a digital variant, delete as 'raw'
+                            $typeToDelete = ($oldV->type === 'digital') ? 'raw' : 'image';
+                            $this->cloudinaryService->deleteFile($oldV->file_path, $typeToDelete);
                         }
                         $oldV->delete();
                     }
@@ -187,28 +195,30 @@ class BookController extends Controller
                             'price'          => $vData['price'],
                             'discount_price' => $vData['discount_price'] ?? null,
                             'stock_quantity' => $vData['type'] === 'digital' ? -1 : ($vData['stock'] ?? 0),
-                        ];
+                            'bookshop_id'    => $vData['type'] === 'physical' ? ($vData['bookshop_id'] ?? null) : null,
+                            ];
 
-                        // Handle Digital File Uploads
+                        // Handle Digital File Uploads (PDFs)
                         if ($vData['type'] === 'digital' && $request->hasFile("variants.{$index}.file")) {
+                            // CRITICAL: Explicitly pass 'raw' for PDFs
                             $variantPayload['file_path'] = $this->cloudinaryService->uploadFile(
                                 $request->file("variants.{$index}.file"), 
-                                'books/files'
+                                'books/files',
+                                'raw' 
                             );
                         }
 
                         if (isset($vData['id'])) {
-                            // Updating existing variant
                             $existing = $book->variants()->find($vData['id']);
                             
-                            // Delete old file if a new one is uploaded
+                            // If a new file is uploaded, delete the old one correctly
                             if (isset($variantPayload['file_path']) && $existing->file_path) {
-                                $this->cloudinaryService->deleteFile($existing->file_path);
+                                // Digital files must be deleted as 'raw'
+                                $this->cloudinaryService->deleteFile($existing->file_path, 'raw');
                             }
                             
                             $existing->update($variantPayload);
                         } else {
-                            // Creating a brand new variant row
                             $book->variants()->create($variantPayload);
                         }
                     }
@@ -218,26 +228,35 @@ class BookController extends Controller
             });
         }
 
-
     public function show(Book $book)
     {
         return new BookResource($book->load(['variants', 'category']));
     }
 
     public function destroy(Book $book)
-    {
-        // Safety check: Don't delete if users have already purchased it
-        if ($book->userLibraries()->exists()) {
-             return response()->json(['message' => 'Cannot delete. Users already own this e-book.'], 409);
-        }
+        {
+            // 1. Safety check (Your existing logic)
+            if ($book->orderItems()->exists()) {
+                return response()->json(['message' => 'Cannot delete. Sold books must be archived.'], 409);
+            }
 
-        // Delete files from Cloudinary
-        $this->cloudinaryService->deleteFile($book->cover_image);
-        foreach($book->variants as $variant) {
-            if($variant->file_path) $this->cloudinaryService->deleteFile($variant->file_path);
-        }
+            return DB::transaction(function () use ($book) {
+                // 2. Delete Cover Image
+                if ($book->cover_image) {
+                    $this->cloudinaryService->deleteFile($book->cover_image, 'image');
+                }
 
-        $book->delete();
-        return response()->json(['message' => 'Book deleted successfully']);
-    }
+                // 3. Delete Variant Files
+                foreach ($book->variants as $variant) {
+                    if ($variant->file_path) {
+                        // FIX: If it's digital, use 'raw'. Otherwise, use 'image'.
+                        $resourceType = ($variant->type === 'digital') ? 'raw' : 'image';
+                        $this->cloudinaryService->deleteFile($variant->file_path, $resourceType);
+                    }
+                }
+
+                $book->delete();
+                return response()->json(['message' => 'Book deleted successfully']);
+            });
+        }
 }
