@@ -8,7 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 class Order extends Model
 {
     use HasUuid;
-    protected $fillable = ['user_id', 'total_amount', 'payment_status', 'order_type'];
+    protected $fillable = [
+    'user_id',
+    'reference', 
+    'total_amount', 
+    'payment_status', 
+    'status', 
+    'order_type'
+    ];
 
     public function user()
     {

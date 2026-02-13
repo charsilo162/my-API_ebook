@@ -8,6 +8,7 @@ use App\Http\Resources\OrderResource;
 use App\Models\Book;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class VendorOrderController extends Controller
 {
@@ -30,39 +31,55 @@ class VendorOrderController extends Controller
     /**
      * Update the status of a specific order.
      */
-    public function updateStatus(Request $request, $id)
-        {
-            $request->validate([
-                'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
-            ]);
+public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled'
+        ]);
 
-            // 1. Find the order ensuring it belongs to this vendor
-            $order = Order::whereHas('items.book', function ($query) {
+        return DB::transaction(function () use ($request, $id) {
+            $order = Order::whereHas('items.variant.book', function ($query) {
                 $query->where('vendor_id', Auth::id());
             })->findOrFail($id);
 
-            // 2. Handle Stock Restoration if the order is being CANCELLED
-            // We only do this if the order wasn't already cancelled (to avoid double-adding stock)
-            if ($request->status === 'cancelled' && $order->status !== 'cancelled') {
+            $oldStatus = $order->status;
+            $newStatus = $request->status;
+            if ($order->status === 'delivered') {
+                return response()->json(['message' => 'Delivered orders cannot be modified.'], 422);
+            }
+            // SCENARIO A: Moving TO Cancelled (Restore Stock)
+            if ($newStatus === 'cancelled' && $oldStatus !== 'cancelled') {
                 foreach ($order->items as $item) {
-                    // Check if it's a physical book (Digital books usually don't need stock limits)
                     if ($item->type === 'physical') {
-                        $item->variant->increment('stock_quantity', 1);
+                        $item->variant()->lockForUpdate()->increment('stock_quantity', 1);
                     }
                 }
             }
 
-            // 3. Update the status
-            $order->update([
-                'status' => $request->status
-            ]);
+            // SCENARIO B: Moving FROM Cancelled back to Active (Deduct Stock)
+            if ($oldStatus === 'cancelled' && $newStatus !== 'cancelled') {
+                foreach ($order->items as $item) {
+                    if ($item->type === 'physical') {
+                        $variant = $item->variant()->lockForUpdate()->first();
+                        
+                        if ($variant->stock_quantity < 1) {
+                            throw new \Exception("Cannot un-cancel: Item '{$item->book->title}' is now out of stock.");
+                        }
+                        
+                        $variant->decrement('stock_quantity', 1);
+                    }
+                }
+            }
+
+            // Update the status
+            $order->update(['status' => $newStatus]);
 
             return response()->json([
-                'message' => "Order status updated to " . ucfirst($request->status),
-                'order' => new OrderResource($order->load('items.variant', 'user')) 
+                'message' => "Order status updated to " . ucfirst($newStatus),
+                'order' => new OrderResource($order->load(['items.variant.book', 'user'])) 
             ]);
-        }
-
+        });
+    }
 
 public function getPopularBooks(Request $request) // Inject the request
 {

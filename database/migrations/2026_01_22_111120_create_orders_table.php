@@ -15,6 +15,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained();
             $table->decimal('total_amount', 15, 2);
+            $table->string('reference')->nullable();
+        // Status: pending, processing, shipped, delivered, completed
+             $table->string('status')->default('pending');
             $table->string('payment_status')->default('pending'); // pending, paid, failed
             $table->string('order_type')->default('instant'); // shipping or instant download
             $table->timestamps();

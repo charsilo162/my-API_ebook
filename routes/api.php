@@ -72,8 +72,13 @@ Route::prefix('vendor')->group(function () {
         Route::post('/update-profile', [VendorApiController::class, 'updateProfile']); // New
         Route::get('/shops', [VendorApiController::class, 'listShops']);
         Route::post('/shops', [VendorApiController::class, 'addShop']);
-        Route::delete('/shops/{bookshop}', [VendorApiController::class, 'deleteShop']);
-    });
+        // FIX IS HERE: Add 'shops/' before the {shop} parameter
+            Route::put('/shops/{shop}', [VendorApiController::class, 'update']); 
+            
+            // Delete Route
+            Route::delete('/shops/{bookshop}', [VendorApiController::class, 'deleteShop']);
+            
+        });
     Route::post('/vendor/register', [VendorApiController::class, 'registerVendor']);
 
 
@@ -110,6 +115,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/popular-books', [VendorOrderController::class, 'getPopularBooks']);
         Route::patch('/orders/{id}/status', [VendorOrderController::class, 'updateStatus']);
     });
+
 
     // Customer Specific Routes
     Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order

@@ -7,6 +7,7 @@ use App\Models\Bookshop;
 use Illuminate\Http\Request;
 use App\Http\Requests\StoreBookshopRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class VendorApiController extends Controller
 {
@@ -15,8 +16,8 @@ class VendorApiController extends Controller
      */
     public function profile()
     {
-        $vendor = Auth::user()->vendorProfile;
-
+       // $vendor = Auth::user()->vendorProfile;
+         $vendor = Auth::user()->vendorProfile->load('user');
         if (!$vendor) {
             return response()->json(['message' => 'User is not a registered vendor'], 404);
         }
@@ -26,6 +27,7 @@ class VendorApiController extends Controller
             'store_name' => $vendor->store_name,
             'bio'        => $vendor->bio,
             'balance'    => $vendor->balance,
+            'user'        => $vendor->user,
             'total_books' => $vendor->books()->count(),
             'total_sales' => $vendor->books()->withCount('variants')->get()->sum('variants_count'),
         ]);
@@ -53,21 +55,44 @@ class VendorApiController extends Controller
      */
     public function updateProfile(Request $request)
         {
-        $vendor = Auth::user()->vendorProfile;
+            $user = Auth::user();
+            
+            $vendor = $user->vendorProfile;
 
-        $data = $request->validate([
-            // Exclude current vendor ID from unique check so it doesn't fail if the name isn't changed
-            'store_name' => 'required|string|unique:vendors,store_name,' . $vendor->id,
-            'bio'        => 'nullable|string',
-        ]);
+            $data = $request->validate([
+                // User fields
+                'first_name' => 'required|string|max:255',
+                'last_name'  => 'required|string|max:255',
+                'email'      => 'required|email|unique:users,email,' . $user->id,
+                'phone'      => 'nullable|string|max:20',
+                
+                // Vendor fields
+                'store_name' => 'required|string|unique:vendors,store_name,' . $vendor->id,
+                'bio'        => 'nullable|string',
+            ]);
 
-        $vendor->update($data);
+            return DB::transaction(function () use ($user, $vendor, $data) {
+                // Update User table
+                $user->update([
+                    'first_name' => $data['first_name'],
+                    'last_name'  => $data['last_name'],
+                    'name'       => $data['first_name'] . ' ' . $data['last_name'], // Sync full name
+                    'email'      => $data['email'],
+                    'phone'      => $data['phone'],
+                ]);
 
-        return response()->json([
-            'message' => 'Profile updated successfully',
-            'vendor' => $vendor
-        ]);
-    }
+                // Update Vendor table
+                $vendor->update([
+                    'store_name' => $data['store_name'],
+                    'bio'        => $data['bio'],
+                ]);
+
+                return response()->json([
+                    'message' => 'Full profile updated successfully',
+                    'user' => $user->load('vendorProfile')
+                ]);
+            });
+        }
     /**
      * List all bookshops for the vendor
      */
@@ -93,7 +118,27 @@ class VendorApiController extends Controller
             'message' => 'Physical bookshop registered successfully',
             'shop' => $shop
         ]);
-    }
+    } 
+
+    public function update(Request $request, Bookshop $shop)
+        {
+            // Ensure the shop belongs to the authenticated vendor
+            if ($shop->vendor_id !== Auth::user()->vendorProfile->id) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            $data = $request->validate([
+                'shop_name' => 'required|string|max:255',
+                'address'   => 'required|string',
+                'city'      => 'required|string',
+                'state'     => 'required|string',
+                'phone'     => 'required|string',
+            ]);
+
+            $shop->update($data);
+
+            return response()->json(['message' => 'Shop updated successfully', 'shop' => $shop]);
+        }
 
     /**
      * Delete a shop location

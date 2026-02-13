@@ -9,7 +9,7 @@ class BookShop extends Model
 {
     use HasUuid;
     protected $table = 'bookshops'; 
-    protected $fillable = ['vendor_id', 'shop_name', 'address', 'city'];
+    protected $fillable = ['vendor_id', 'shop_name', 'address', 'state','city'];
 
     // A Bookshop belongs to a Vendor
     public function vendor()
