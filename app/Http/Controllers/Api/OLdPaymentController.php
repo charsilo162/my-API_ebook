@@ -130,8 +130,8 @@ class PaymentController extends Controller
 
         $redirectUrl = $variant->type === 'digital' 
             ? "/dashboard/library?success=Book added to library" 
-            : "/dashboard/orders?success=Physical book order placed";
-
+            : "/dashboard/my-orders?success=Physical book order placed";
+            // log::info("Redirecting user to: " . config('frontend.base_url') . $redirectUrl);
         return redirect(config('frontend.base_url') . $redirectUrl);
 
     } catch (\Exception $e) {

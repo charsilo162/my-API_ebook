@@ -84,7 +84,7 @@ class PaymentApiController extends Controller
     public function callback(Request $request)
         {
             $reference = $request->query('reference');
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:8000');
+            $frontendUrl = env('FRONTEND_URL', 'http://127.0.0.1:8000');
 
             if (!$reference) {
                 return redirect()->away($frontendUrl . '/categories?error=no_reference');
@@ -108,10 +108,11 @@ class PaymentApiController extends Controller
 
                 // Redirect to Frontend based on type
                 if ($meta['order_type'] === 'digital') {
+                    
                     return redirect()->away($frontendUrl . "/my-library?success=Book purchased!");
                 }
 
-                return redirect()->away($frontendUrl . "/orders/{$order->id}?success=Order processing");
+                return redirect()->away($frontendUrl . "/dashboard/my-orders/?success=Order processing");
 
             } catch (\Exception $e) {
                 Log::error("Payment Callback Error: " . $e->getMessage());

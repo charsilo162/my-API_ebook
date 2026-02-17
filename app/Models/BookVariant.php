@@ -33,12 +33,17 @@ class BookVariant extends Model
             {
                 return $this->belongsTo(Book::class);
             }
-
+    public function bookshop()
+        {
+            // Use the exact class name: BookShop
+            return $this->belongsTo(BookShop::class, 'bookshop_id');
+        }
             // Scopes for easy filtering in your controllers
             public function scopeDigital($query)
             {
                 return $query->where('type', 'digital');
             }
+   
 
             public function scopePhysical($query)
             {

@@ -9,9 +9,10 @@ class BookShop extends Model
 {
     use HasUuid;
     protected $table = 'bookshops'; 
-    protected $fillable = ['vendor_id', 'shop_name', 'address', 'state','city'];
-
-    // A Bookshop belongs to a Vendor
+      public $incrementing = false;
+    protected $keyType = 'string';
+    protected $fillable = ['vendor_id', 'shop_name', 'address', 'state', 'city', 'phone'];
+        // A Bookshop belongs to a Vendor
     public function vendor()
     {
         return $this->belongsTo(Vendor::class, 'vendor_id');

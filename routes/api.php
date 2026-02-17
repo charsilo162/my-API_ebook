@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CenterController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\LikeController;
+use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentApiController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ShareController;
@@ -29,7 +30,7 @@ use App\Http\Controllers\Api\VendorOrderController;
 Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
     // Categories & Centers (public)
     Route::get('/categories', [CategoryController::class, 'index']);
-
+    Route::put('/books/{book:uuid}', [BookController::class, 'update']);
     // Route::get('/books', [BookController::class, 'index']);
     Route::resource('books', BookController::class)->only(['index', 'show']);
     Route::get('/books/{book:uuid}', [BookController::class, 'show']);
@@ -119,6 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Customer Specific Routes
     Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
+    Route::get('/myorders', [OrderController::class, 'index']); // New endpoint for customer's orders
 });
 
 

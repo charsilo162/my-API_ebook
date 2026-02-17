@@ -13,6 +13,7 @@ class Book extends Model
 {
 
     use HasFactory,HasUuid;
+  
    protected function casts(): array
     {
         return [

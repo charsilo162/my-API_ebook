@@ -30,4 +30,5 @@ class OrderItem extends Model
     {
         return $this->belongsTo(BookVariant::class, 'book_variant_id');
     }
+
 }
