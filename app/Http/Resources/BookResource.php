@@ -21,6 +21,7 @@ class BookResource extends JsonResource
             
             // NEW: Tell the frontend what type to use for the link
             'default_type' => $defaultType,
+             'is_active' => (bool) $this->is_active,
             
             'category' => new CategoryResource($this->whenLoaded('category')),
             

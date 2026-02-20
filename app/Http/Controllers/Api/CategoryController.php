@@ -45,6 +45,22 @@ class CategoryController extends Controller
         return CategoryResource::collection($query->paginate($request->query('per_page', 15)));
     }
 
+    public function random(Request $request)
+    {
+        $query = Category::query();
+        // Count books in each category (E-book requirement)
+        if ($request->has('with_count')) {
+            $query->withCount('books');
+        }
+        // Limit default to 10
+        $limit = $request->query('limit', 10);
+        // Apply random order
+        $query->inRandomOrder();
+        
+        return CategoryResource::collection($query->limit($limit)->get());
+    }
+
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -138,7 +154,8 @@ class CategoryController extends Controller
                         'image' => $category->image_path 
                             ? asset('storage/' . $category->image_path) 
                             : asset('storage/images/d5.jpg'),
-                        'url' => url('/categories/' . $category->slug),
+                          'url' => config('app.frontend_url') . '/categories?category=' . $category->uuid,
+                        //'url' => url('/categories/' . $category->slug),
                     ];
                 });
 

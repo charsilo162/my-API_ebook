@@ -28,8 +28,12 @@ class BookController extends Controller
 
                 // 1. Initialize query with Eager Loading
                 // We load 'variants' so that ALL variants come with the book
-                $query = Book::with(['category', 'variants', 'vendor'])
-                            ->withMin('variants', 'price'); // Adds 'variants_min_price' attribute automatically
+               $query = Book::with(['category', 'variants', 'vendor'])
+                    ->withMin('variants', 'price');
+
+                    if (!$request->boolean('include_inactive')) {
+                        $query->where('is_active', true);
+                    }// Adds 'variants_min_price' attribute automatically
 
                 // 2. Search Logic
                 if ($request->filled('search')) {
@@ -48,6 +52,15 @@ class BookController extends Controller
                         });
                     }
 
+                    if ($request->filled('status')) {
+                        if ($request->status === 'active') {
+                            $query->where('is_active', true);
+                        }
+
+                        if ($request->status === 'inactive') {
+                            $query->where('is_active', false);
+                        }
+                    }
 
                 // 4. Professional Sorting
                 // Default to latest if no order_by is provided
@@ -259,4 +272,17 @@ class BookController extends Controller
                 return response()->json(['message' => 'Book deleted successfully']);
             });
         }
+
+        public function toggleActive(Book $book)
+            {
+                $book->update([
+                    'is_active' => !$book->is_active
+                ]);
+
+                return response()->json([
+                    'message' => 'Book status updated successfully',
+                    'is_active' => $book->is_active
+                ]);
+            }
+
 }

@@ -14,8 +14,6 @@ class StatsController extends Controller
 {
     public function index()
     {
-
-   
         $user = Auth::user();
 
         if (!$user) {
@@ -25,54 +23,36 @@ class StatsController extends Controller
         $isAdmin = $user->type === 'admin';
         $isVendor = $user->type === 'vendor';
 
+        // Only admin or vendor can access
         if (!$isAdmin && !$isVendor) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        // Vendor ID (only for vendors)
         $vendorId = $isVendor ? $user->vendorProfile->id : null;
 
         // Total books
-        $booksQuery = Book::query();
-        if ($isVendor) {
-            $booksQuery->where('vendor_id', $vendorId);
-        }
-        $totalBooks = $booksQuery->count();
+        $totalBooks = Book::when($isVendor, fn($q) => $q->where('vendor_id', $vendorId))->count();
 
-        // Total physical (hard copy) and digital (soft copy) variants
-        $physicalQuery = BookVariant::where('type', 'physical');
-        $digitalQuery = BookVariant::where('type', 'digital');
-        if ($isVendor) {
-            $physicalQuery->whereHas('book', function ($query) use ($vendorId) {
-                $query->where('vendor_id', $vendorId);
-            });
-            $digitalQuery->whereHas('book', function ($query) use ($vendorId) {
-                $query->where('vendor_id', $vendorId);
-            });
-        }
-        $totalPhysical = $physicalQuery->count();
-        $totalDigital = $digitalQuery->count();
+        // Total physical and digital variants
+        $totalPhysical = BookVariant::when($isVendor, fn($q) => 
+            $q->whereHas('book', fn($b) => $b->where('vendor_id', $vendorId))
+        )->where('type', 'physical')->count();
 
-        // Total books bought (sold) - assuming paid orders
-        $soldQuery = OrderItem::query()
-            ->whereHas('order', function ($query) {
-                $query->where('payment_status', 'paid');
-            });
-        if ($isVendor) {
-            $soldQuery->whereHas('book', function ($query) use ($vendorId) {
-                $query->where('vendor_id', $vendorId);
-            });
-        }
-        $totalSold = $soldQuery->count();
+        $totalDigital = BookVariant::when($isVendor, fn($q) => 
+            $q->whereHas('book', fn($b) => $b->where('vendor_id', $vendorId))
+        )->where('type', 'digital')->count();
+
+        // Total sold books (paid orders)
+        $totalSold = OrderItem::when($isVendor, fn($q) => 
+            $q->whereHas('book', fn($b) => $b->where('vendor_id', $vendorId))
+        )->whereHas('order', fn($o) => $o->where('payment_status', 'paid'))->count();
 
         // Admin-only stats
-        $totalUsers = 0;
-        $totalVendors = 0;
-        if ($isAdmin) {
-            $totalUsers = User::where('type', 'user')->count();
-            $totalVendors = User::where('type', 'vendor')->count();
-        }
+        $totalUsers = $isAdmin ? User::where('type', 'user')->count() : 0;
+        $totalVendors = $isAdmin ? User::where('type', 'vendor')->count() : 0;
 
-        // Prepare data for resource
+        // Prepare data
         $data = [
             'total_books' => $totalBooks,
             'total_physical' => $totalPhysical,

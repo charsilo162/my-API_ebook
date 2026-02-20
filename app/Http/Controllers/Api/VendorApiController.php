@@ -65,6 +65,7 @@ class VendorApiController extends Controller
                 'last_name'  => 'required|string|max:255',
                 'email'      => 'required|email|unique:users,email,' . $user->id,
                 'phone'      => 'nullable|string|max:20',
+                'type'       => 'required|in:user,admin,vendor',
                 
                 // Vendor fields
                 'store_name' => 'required|string|unique:vendors,store_name,' . $vendor->id,
@@ -79,6 +80,7 @@ class VendorApiController extends Controller
                     'name'       => $data['first_name'] . ' ' . $data['last_name'], // Sync full name
                     'email'      => $data['email'],
                     'phone'      => $data['phone'],
+                    'type'       => $data['type'],
                 ]);
 
                 // Update Vendor table

@@ -19,18 +19,18 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\UserLibraryController;
 use App\Http\Controllers\Api\VendorApiController;
 use App\Http\Controllers\Api\VendorOrderController;
-
-
     // ====================================
     // PUBLIC ROUTES (NO LOGIN REQUIRED)
     // ====================================
         Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
             Route::get('/public/categories', [CategoryController::class, 'getCategories']);
+            Route::get('categories/random', [CategoryController::class, 'random']);
     Route::get('/test', fn() => response()->json(['message' => 'API IS WORKING!']));
 Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
     // Categories & Centers (public)
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::put('/books/{book:uuid}', [BookController::class, 'update']);
+    Route::patch('/books/{book}/toggle-active', [BookController::class, 'toggleActive']);
     // Route::get('/books', [BookController::class, 'index']);
     Route::resource('books', BookController::class)->only(['index', 'show']);
     Route::get('/books/{book:uuid}', [BookController::class, 'show']);
@@ -66,6 +66,9 @@ Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::delete('books/{book}', [BookController::class, 'destroy']);
+    Route::post('/user-profile-update', [AuthController::class, 'updateProfile']); // New
+    Route::get('/user-profile', [AuthController::class, 'profile']); // New
+
 });
 
 Route::prefix('vendor')->group(function () {

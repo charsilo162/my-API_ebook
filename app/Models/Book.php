@@ -25,6 +25,7 @@ class Book extends Model
             'uuid',   
             'vendor_id',   
             'category_id', 
+            'is_active',
             'title',       
             'slug',        
             'author_name', 

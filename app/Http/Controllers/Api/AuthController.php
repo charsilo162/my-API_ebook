@@ -21,7 +21,31 @@ class AuthController extends Controller
     {
         $this->cloudinary = $cloudinary;
     }
+        public function profile()
+    {
+        $user = Auth::user();
 
+        $response = [
+            'user' => [
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone ?? null,
+                'type' => $user->type,
+            ]
+        ];
+
+        if ($user->type === 'vendor' && $user->vendorProfile) {
+            $vendor = $user->vendorProfile;
+            $response['store_name'] = $vendor->store_name;
+            $response['bio'] = $vendor->bio;
+        } else {
+            $response['store_name'] = null;
+            $response['bio'] = null;
+        }
+
+        return response()->json($response);
+    }
     public function register(Request $request)
     {
         $request->validate([
@@ -78,47 +102,133 @@ class AuthController extends Controller
             ], 201);
         });
     }
-   public function updateProfile(Request $request)
-        {
-            $user = $request->user();
-            //  Log::info('Incoming user request', [
-            //     'data'  => $request->all(),
-            //     'files' => $request->file(),
-            // ]);
+//    public function updateProfile(Request $request)
+//         {
+//             $user = $request->user();
+//             //  Log::info('Incoming user request', [
+//             //     'data'  => $request->all(),
+//             //     'files' => $request->file(),
+//             // ]);
 
-            $data = $request->validate([
-                'name'     => 'sometimes|string|max:255',
-                'email'    => 'sometimes|email|unique:users,email,' . $user->id,
-                'password' => 'sometimes|min:6|confirmed',
-                'photo'    => 'sometimes|nullable|image|max:2048',
-            ]);
+//             $data = $request->validate([
+//                 'name'     => 'sometimes|string|max:255',
+//                 'email'    => 'sometimes|email|unique:users,email,' . $user->id,
+//                 'password' => 'sometimes|min:6|confirmed',
+//                 'photo'    => 'sometimes|nullable|image|max:2048',
+//             ]);
 
-            if ($request->has('password')) {
-                $data['password'] = Hash::make($data['password']);
-            }
+//             if ($request->has('password')) {
+//                 $data['password'] = Hash::make($data['password']);
+//             }
 
-            if ($request->hasFile('photo')) {
-                // 1. Delete old photo from Cloudinary if it exists
-                if ($user->photo_path) {
-                    $this->cloudinaryService->deleteFile($user->photo_path);
-                }
+//             if ($request->hasFile('photo')) {
+//                 // 1. Delete old photo from Cloudinary if it exists
+//                 if ($user->photo_path) {
+//                     $this->cloudinaryService->deleteFile($user->photo_path);
+//                 }
 
-                // 2. Upload new photo
-                $data['photo_path'] = $this->cloudinaryService->uploadFile(
-                    $request->file('photo'), 
-                    'profile_photos'
-                );
-            }
+//                 // 2. Upload new photo
+//                 $data['photo_path'] = $this->cloudinaryService->uploadFile(
+//                     $request->file('photo'), 
+//                     'profile_photos'
+//                 );
+//             }
 
-            // Remove the 'photo' file object from the data array so it doesn't interfere with update
-            unset($data['photo']);
+//             // Remove the 'photo' file object from the data array so it doesn't interfere with update
+//             unset($data['photo']);
             
-            $user->update($data);
+//             $user->update($data);
 
-            return response()->json([
-                'user' => new UserResource($user->fresh()),
-            ], 200);
+//             return response()->json([
+//                 'user' => new UserResource($user->fresh()),
+//             ], 200);
+//         }
+
+
+     public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $rules = [
+            'first_name' => 'sometimes|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:20',
+            'type' => 'sometimes|in:user,vendor',
+            'password' => 'sometimes|min:6|confirmed',
+            'photo' => 'sometimes|nullable|image|max:2048',
+        ];
+
+        $effective_type = $request->input('type', $user->type);
+
+        if ($effective_type === 'vendor') {
+            $store_name_rules = ['string', 'max:255', 'unique:vendors,store_name,' . ($user->vendorProfile->id ?? 'NULL')];
+            $bio_rules = ['string'];
+
+            if (!$user->vendorProfile) {
+                array_unshift($store_name_rules, 'required');
+                array_unshift($bio_rules, 'required');
+            } else {
+                array_unshift($store_name_rules, 'nullable');
+                array_unshift($bio_rules, 'nullable');
+            }
+
+            $rules['store_name'] = $store_name_rules;
+            $rules['bio'] = $bio_rules;
         }
+
+        $validated = $request->validate($rules);
+
+        $updateData = [
+            'first_name' => $validated['first_name'] ?? $user->first_name,
+            'last_name' => $validated['last_name'] ?? $user->last_name,
+            'email' => $validated['email'] ?? $user->email,
+            'phone' => $validated['phone'] ?? $user->phone,
+            'type' => $validated['type'] ?? $user->type,
+        ];
+
+        $updateData['name'] = $updateData['first_name'] . ' ' . $updateData['last_name'];
+
+        if (isset($validated['password'])) {
+            $updateData['password'] = Hash::make($validated['password']);
+        }
+
+        if ($request->hasFile('photo')) {
+            // 1. Delete old photo from Cloudinary if it exists
+            if ($user->photo_path) {
+                $this->cloudinary->deleteFile($user->photo_path);
+            }
+
+            // 2. Upload new photo
+            $updateData['photo_path'] = $this->cloudinary->uploadFile(
+                $request->file('photo'), 
+                'profiles'
+            );
+        }
+
+        $user->update($updateData);
+
+        if ($user->type === 'vendor') {
+            $vendorData = [
+                'store_name' => $validated['store_name'] ?? ($user->vendorProfile->store_name ?? null),
+                'bio' => $validated['bio'] ?? ($user->vendorProfile->bio ?? null),
+            ];
+
+            if ($user->vendorProfile) {
+                $user->vendorProfile->update($vendorData);
+            } else {
+                $user->vendorProfile()->create(array_merge($vendorData, ['balance' => 0.00]));
+            }
+        } elseif ($user->type === 'user' && $user->vendorProfile) {
+            // Optional: handle downgrade, perhaps delete vendor profile or set inactive
+            // For now, we'll keep it but you can add logic if needed
+        }
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $user->fresh()->load('vendorProfile'),
+        ], 200);
+    }
         public function login(Request $request)
         {
             $credentials = $request->validate([
@@ -157,20 +267,5 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out successfully']);
     }
 
-        public function enrolledCourses(Request $request)
-    {
-        $user = $request->user();
-        $query = $user->enrolledCourses();
 
-        if ($search = $request->query('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%$search%")
-                ->orWhere('description', 'like', "%$search%");
-            });
-        }
-
-        $courses = $query->with('videos')->paginate(9);
-
-        return CourseResource::collection($courses);
-    }
 }
