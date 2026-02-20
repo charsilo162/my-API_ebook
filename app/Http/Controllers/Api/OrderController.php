@@ -21,7 +21,7 @@ public function index(Request $request)
 
     $orders = $query->with(['items.book.vendor', 'items.variant.bookshop'])
         ->latest()
-        ->paginate(2);
+        ->paginate(10);
 
   
 

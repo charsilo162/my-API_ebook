@@ -14,24 +14,27 @@ class VendorApiController extends Controller
     /**
      * Get the authenticated vendor's profile and stats
      */
-    public function profile()
-    {
-       // $vendor = Auth::user()->vendorProfile;
-         $vendor = Auth::user()->vendorProfile->load('user');
-        if (!$vendor) {
-            return response()->json(['message' => 'User is not a registered vendor'], 404);
-        }
+public function profile()
+{
+    $user = Auth::user();
+    $vendor = $user->vendorProfile; // Get the relationship result first
 
-        // Load stats for the dashboard
-        return response()->json([
-            'store_name' => $vendor->store_name,
-            'bio'        => $vendor->bio,
-            'balance'    => $vendor->balance,
-            'user'        => $vendor->user,
-            'total_books' => $vendor->books()->count(),
-            'total_sales' => $vendor->books()->withCount('variants')->get()->sum('variants_count'),
-        ]);
+    if (!$vendor) {
+        return response()->json(['message' => 'User is not a registered vendor'], 404);
     }
+
+    // Now that we know $vendor is NOT null, we can load the user
+    $vendor->load('user');
+
+    return response()->json([
+        'store_name' => $vendor->store_name,
+        'bio'        => $vendor->bio,
+        'balance'    => $vendor->balance,
+        'user'       => $vendor->user,
+        'total_books' => $vendor->books()->count(),
+        'total_sales' => $vendor->books()->withCount('variants')->get()->sum('variants_count'),
+    ]);
+}
 
     /**
      * Register as a Vendor

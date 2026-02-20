@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminUserController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookController;
@@ -125,7 +126,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
     Route::get('/myorders', [OrderController::class, 'index']); // New endpoint for customer's orders
 });
-
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/admin/users', [AdminUserController::class, 'index']);
+    Route::patch('/admin/users/{user}/toggle', [AdminUserController::class, 'toggleStatus']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     // Library Endpoints
