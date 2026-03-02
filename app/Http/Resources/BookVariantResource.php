@@ -18,6 +18,13 @@ class BookVariantResource extends JsonResource
             'price' => (float) $this->price,
             'discount_price' => (float) $this->discount_price,
             'is_on_sale' => $hasDiscount,
+            'bookshop_id'       => $this->when(
+                $this->type === 'physical',
+                fn() => $this->bookshop_id ?? null
+            ),
+
+            // Optional: full bookshop name if loaded (better UX)
+            'bookshop_name'     => $this->whenLoaded('bookshop', fn() => $this->bookshop?->name ?? null),
             'discount_percentage' => $hasDiscount 
                 ? round((($this->price - $this->discount_price) / $this->price) * 100) 
                 : 0,

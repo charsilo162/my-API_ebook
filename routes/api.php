@@ -23,11 +23,11 @@ use App\Http\Controllers\Api\VendorOrderController;
     // ====================================
     // PUBLIC ROUTES (NO LOGIN REQUIRED)
     // ====================================
-        Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
-            Route::get('/public/categories', [CategoryController::class, 'getCategories']);
-            Route::get('categories/random', [CategoryController::class, 'random']);
+    Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
+    Route::get('/public/categories', [CategoryController::class, 'getCategories']);
+    Route::get('categories/random', [CategoryController::class, 'random']);
     Route::get('/test', fn() => response()->json(['message' => 'API IS WORKING!']));
-Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
+    Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
     // Categories & Centers (public)
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::put('/books/{book:uuid}', [BookController::class, 'update']);
@@ -59,20 +59,20 @@ Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index
         // // ====================================
         // PROTECTED ROUTES (REQUIRES LOGIN)
         // ====================================
-    Route::middleware('auth:sanctum')->group(function () {
-    Route::post('categories', [CategoryController::class, 'store']);
-    Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
+        Route::middleware('auth:sanctum')->group(function () {
+        Route::post('categories', [CategoryController::class, 'store']);
+        Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
 
 
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::delete('books/{book}', [BookController::class, 'destroy']);
-    Route::post('/user-profile-update', [AuthController::class, 'updateProfile']); // New
-    Route::get('/user-profile', [AuthController::class, 'profile']); // New
+        Route::middleware('auth:sanctum')->group(function () {
+        Route::delete('books/{book}', [BookController::class, 'destroy']);
+        Route::post('/user-profile-update', [AuthController::class, 'updateProfile']); // New
+        Route::get('/user-profile', [AuthController::class, 'profile']); // New
 
-});
+            });
 
-Route::prefix('vendor')->group(function () {
+        Route::prefix('vendor')->group(function () {
         Route::get('/profile', [VendorApiController::class, 'profile']);
         Route::post('/update-profile', [VendorApiController::class, 'updateProfile']); // New
         Route::get('/shops', [VendorApiController::class, 'listShops']);
@@ -89,11 +89,11 @@ Route::prefix('vendor')->group(function () {
 
 
 
-Route::post('/logout', [AuthController::class, 'logout']);
-Route::get('/me/enrolled-courses', [AuthController::class, 'enrolledCourses']);
-Route::put('/me/profile', [AuthController::class, 'updateProfile']);
-    // Route::post('/me/profile', [AuthController::class, 'updateProfile']);
-Route::apiResource('bookshops', BookshopController::class);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me/enrolled-courses', [AuthController::class, 'enrolledCourses']);
+    Route::put('/me/profile', [AuthController::class, 'updateProfile']);
+        // Route::post('/me/profile', [AuthController::class, 'updateProfile']);
+    Route::apiResource('bookshops', BookshopController::class);
 
 
     Route::middleware('auth:sanctum')->post('/payment/initialize', [PaymentController::class, 'initialize']);
@@ -112,33 +112,32 @@ Route::apiResource('bookshops', BookshopController::class);
 
 
 
-Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware('auth:sanctum')->group(function () {
     
-    // Vendor Specific Routes
-    Route::prefix('vendor')->group(function () {
+        // Vendor Specific Routes
+        Route::prefix('vendor')->group(function () {
         Route::get('/orders', [VendorOrderController::class, 'index']);
         Route::get('/popular-books', [VendorOrderController::class, 'getPopularBooks']);
         Route::patch('/orders/{id}/status', [VendorOrderController::class, 'updateStatus']);
+        });
+
+        // Customer Specific Routes
+        Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
+        Route::get('/myorders', [OrderController::class, 'index']); // New endpoint for customer's orders
+        });
+        Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/admin/users', [AdminUserController::class, 'index']);
+        Route::patch('/admin/users/{user}/toggle', [AdminUserController::class, 'toggleStatus']);
+        });
+
+        Route::middleware('auth:sanctum')->group(function () {
+        // Library Endpoints
+        Route::get('/library', [UserLibraryController::class, 'index']);
+        Route::get('/library/{libraryItem}/download', [UserLibraryController::class, 'download']);
+        // Route::get('/stats', [StatsController::class, 'index']);
+        // Payment Endpoints
+        Route::post('/payments/initialize', [PaymentApiController::class, 'initialize']);
     });
 
-
-    // Customer Specific Routes
-    Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
-    Route::get('/myorders', [OrderController::class, 'index']); // New endpoint for customer's orders
-});
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/admin/users', [AdminUserController::class, 'index']);
-    Route::patch('/admin/users/{user}/toggle', [AdminUserController::class, 'toggleStatus']);
-});
-
-Route::middleware('auth:sanctum')->group(function () {
-    // Library Endpoints
-    Route::get('/library', [UserLibraryController::class, 'index']);
-    Route::get('/library/{libraryItem}/download', [UserLibraryController::class, 'download']);
-    // Route::get('/stats', [StatsController::class, 'index']);
-    // Payment Endpoints
-    Route::post('/payments/initialize', [PaymentApiController::class, 'initialize']);
-});
-
-// The Callback is usually a GET request from Paystack
-Route::get('/payments/callback', [PaymentApiController::class, 'callback'])->name('payment.callback');
+    // The Callback is usually a GET request from Paystack
+    Route::get('/payments/callback', [PaymentApiController::class, 'callback'])->name('payment.callback');

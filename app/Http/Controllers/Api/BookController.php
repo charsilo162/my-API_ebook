@@ -243,7 +243,7 @@ class BookController extends Controller
 
     public function show(Book $book)
     {
-        return new BookResource($book->load(['variants', 'category']));
+        return new BookResource($book->load(['variants.bookshop', 'category',]));
     }
 
     public function destroy(Book $book)

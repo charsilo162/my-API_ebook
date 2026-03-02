@@ -15,7 +15,7 @@ class Category extends Model
     /**
      * Get the courses for the category.
      */
-   protected $fillable = ['name', 'slug'];
+   protected $fillable = ['name', 'slug', 'thumbnail_url'];
 
   
     protected static function boot()

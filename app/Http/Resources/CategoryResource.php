@@ -13,7 +13,7 @@ class CategoryResource extends JsonResource
             'uuid' => $this->uuid,
             'name' => $this->name,
             'slug' => $this->slug,
-            'thumbnail' => $this->thumbnail_url ?? 'https://via.placeholder.com/150',
+           'thumbnail_url' => $this->thumbnail_url ?? asset('storage/images/d5.jpg'),
             'books_count' => $this->whenCounted('books'),
             'created_at' => $this->created_at->toDateTimeString(),
         ];

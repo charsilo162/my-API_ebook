@@ -6,6 +6,7 @@ use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CategoryController extends Controller
@@ -17,34 +18,33 @@ class CategoryController extends Controller
         $this->cloudinaryService = $cloudinaryService;
     }
 
-    public function index(Request $request)
-    {
-        $query = Category::query();
+   public function index(Request $request)
+        {
+            $query = Category::query();
 
-        // Count books in each category (E-book requirement)
-        if ($request->has('with_count')) {
-            $query->withCount('books');
+            // 1. Count books in each category
+            if ($request->has('with_count')) {
+                $query->withCount('books');
+            }
+
+            // 2. Search by name
+            if ($search = $request->query('search')) {
+                $query->where('name', 'like', "%{$search}%");
+            }
+
+            // 3. Simple Hard-coded Sorting: Newest First
+            $query->orderBy('created_at', 'desc');
+
+            // 4. Limit for homepage "Top Categories"
+            if ($limit = $request->query('limit')) {
+                return CategoryResource::collection($query->limit($limit)->get());
+            }
+
+            // 5. Paginate results
+            return CategoryResource::collection(
+                $query->paginate($request->query('per_page', 15))
+            );
         }
-
-        // Search by name
-        if ($search = $request->query('search')) {
-            $query->where('name', 'like', "%{$search}%");
-        }
-
-        // Sorting
-        if ($orderBy = $request->query('order_by')) {
-            [$field, $direction] = explode(',', $orderBy);
-            $query->orderBy($field, $direction ?? 'asc');
-        }
-
-        // Limit for homepage "Top Categories"
-        if ($limit = $request->query('limit')) {
-            return CategoryResource::collection($query->limit($limit)->get());
-        }
-
-        return CategoryResource::collection($query->paginate($request->query('per_page', 15)));
-    }
-
     public function random(Request $request)
     {
         $query = Category::query();
