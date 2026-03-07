@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -67,7 +68,6 @@ class PaymentController extends Controller
             }
 
             return response()->json(['authorization_url' => $body['data']['authorization_url']]);
-
         } catch (\Exception $e) {
             Log::error("Paystack Init Error: " . $e->getMessage());
             return response()->json(['error' => 'Payment initialization failed.'], 500);
@@ -76,69 +76,67 @@ class PaymentController extends Controller
 
 
     public function callback(Request $request)
-{
-    $reference = $request->query('reference');
-    
-    try {
-        $verifyUrl = config('paystack.payment_url') . "/transaction/verify/{$reference}";
-        $response = Http::withToken($this->secretKey)->get($verifyUrl);
-        $body = $response->json();
+    {
+        $reference = $request->query('reference');
 
-        if (!$response->successful() || $body['data']['status'] !== 'success') {
-            throw new \Exception('Transaction verification failed.');
-        }
+        try {
+            $verifyUrl = config('paystack.payment_url') . "/transaction/verify/{$reference}";
+            $response = Http::withToken($this->secretKey)->get($verifyUrl);
+            $body = $response->json();
 
-        $data = $body['data'];
-        $variantId = $data['metadata']['variant_id'];
-        $userId = $data['metadata']['user_id'];
+            if (!$response->successful() || $body['data']['status'] !== 'success') {
+                throw new \Exception('Transaction verification failed.');
+            }
 
-        DB::beginTransaction();
+            $data = $body['data'];
+            $variantId = $data['metadata']['variant_id'];
+            $userId = $data['metadata']['user_id'];
 
-        $variant = BookVariant::findOrFail($variantId);
-        $user = User::findOrFail($userId);
+            DB::beginTransaction();
 
-        // 1. Create the Permanent Order Record
-        $order = Order::create([
-            'user_id' => $user->id,
-            'total_amount' => $data['amount'] / 100,
-            'payment_status' => 'paid',
-            'order_type' => $variant->type === 'digital' ? 'instant' : 'shipping',
-            'payment_reference' => $reference
-        ]);
+            $variant = BookVariant::findOrFail($variantId);
+            $user = User::findOrFail($userId);
 
-        // 2. Create Order Item
-        $order->items()->create([
-            'book_variant_id' => $variant->id,
-            'price_at_purchase' => $data['amount'] / 100,
-            'quantity' => 1
-        ]);
-
-        // 3. If Digital, Add to User Library for Dashboard access
-        if ($variant->type === 'digital') {
-            UserLibrary::firstOrCreate([
+            // 1. Create the Permanent Order Record
+            $order = Order::create([
                 'user_id' => $user->id,
-                'book_id' => $variant->book_id,
-                'book_variant_id' => $variant->id,
-                'purchased_at' => now()
+                'total_amount' => $data['amount'] / 100,
+                'payment_status' => 'paid',
+                'order_type' => $variant->type === 'digital' ? 'instant' : 'shipping',
+                'payment_reference' => $reference
             ]);
-        } else {
-            // 4. If Physical, decrement stock
-            $variant->decrement('stock_quantity');
-        }
 
-       DB::commit();
+            // 2. Create Order Item
+            $order->items()->create([
+                'book_variant_id' => $variant->id,
+                'price_at_purchase' => $data['amount'] / 100,
+                'quantity' => 1
+            ]);
 
-        $redirectUrl = $variant->type === 'digital' 
-            ? "/dashboard/library?success=Book added to library" 
-            : "/dashboard/my-orders?success=Physical book order placed";
+            // 3. If Digital, Add to User Library for Dashboard access
+            if ($variant->type === 'digital') {
+                UserLibrary::firstOrCreate([
+                    'user_id' => $user->id,
+                    'book_id' => $variant->book_id,
+                    'book_variant_id' => $variant->id,
+                    'purchased_at' => now()
+                ]);
+            } else {
+                // 4. If Physical, decrement stock
+                $variant->decrement('stock_quantity');
+            }
+
+            DB::commit();
+
+            $redirectUrl = $variant->type === 'digital'
+                ? "/dashboard/library?success=Book added to library"
+                : "/dashboard/my-orders?success=Physical book order placed";
             // log::info("Redirecting user to: " . config('frontend.base_url') . $redirectUrl);
-        return redirect(config('frontend.base_url') . $redirectUrl);
-
-    } catch (\Exception $e) {
-       DB::rollBack();
-        Log::error("Paystack Callback Error: " . $e->getMessage());
-        return redirect(config('frontend.base_url') . '/checkout?error=Verification failed');
+            return redirect(config('frontend.base_url') . $redirectUrl);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Paystack Callback Error: " . $e->getMessage());
+            return redirect(config('frontend.base_url') . '/checkout?error=Verification failed');
+        }
     }
-}
-
 }

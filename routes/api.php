@@ -13,77 +13,75 @@ use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\LikeController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentApiController;
-use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ShareController;
 use App\Http\Controllers\Api\ShowcaseController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\UserLibraryController;
 use App\Http\Controllers\Api\VendorApiController;
 use App\Http\Controllers\Api\VendorOrderController;
-    // ====================================
-    // PUBLIC ROUTES (NO LOGIN REQUIRED)
-    // ====================================
-    Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
-    Route::get('/public/categories', [CategoryController::class, 'getCategories']);
-    Route::get('categories/random', [CategoryController::class, 'random']);
-    Route::get('/test', fn() => response()->json(['message' => 'API IS WORKING!']));
-    Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
-    // Categories & Centers (public)
-    Route::get('/categories', [CategoryController::class, 'index']);
-    Route::put('/books/{book:uuid}', [BookController::class, 'update']);
-    Route::patch('/books/{book}/toggle-active', [BookController::class, 'toggleActive']);
-    // Route::get('/books', [BookController::class, 'index']);
-    Route::resource('books', BookController::class)->only(['index', 'show']);
-    Route::get('/books/{book:uuid}', [BookController::class, 'show']);
-    //  Route::get('/books/{uuid}', [BookController::class, 'show']);
-    Route::get('/categories/count', [CategoryController::class, 'count']);
-    Route::get('/categories/{category}', [CategoryController::class, 'show']); // GET /api/categories/{id} (single)
+// ====================================
+// PUBLIC ROUTES (NO LOGIN REQUIRED)
+// ====================================
+Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
+Route::get('/public/categories', [CategoryController::class, 'getCategories']);
+Route::get('categories/random', [CategoryController::class, 'random']);
+Route::get('/test', fn() => response()->json(['message' => 'API IS WORKING!']));
+Route::middleware('auth:sanctum')->get('/stats', [StatsController::class, 'index']);
+// Categories & Centers (public)
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::put('/books/{book:uuid}', [BookController::class, 'update']);
+Route::patch('/books/{book}/toggle-active', [BookController::class, 'toggleActive']);
+// Route::get('/books', [BookController::class, 'index']);
+Route::resource('books', BookController::class)->only(['index', 'show']);
+Route::get('/books/{book:uuid}', [BookController::class, 'show']);
+//  Route::get('/books/{uuid}', [BookController::class, 'show']);
+Route::get('/categories/count', [CategoryController::class, 'count']);
+Route::get('/categories/{category}', [CategoryController::class, 'show']); // GET /api/categories/{id} (single)
 
 
-        // Courses (public index + show)
-        Route::get('courses/without-videos', [CourseController::class, 'noVideos']);
-        Route::get('courses/count', [CategoryController::class, 'count']);
-        Route::apiResource('courses', CourseController::class)->only(['index', 'show']);
+// Courses (public index + show)
+Route::get('courses/without-videos', [CourseController::class, 'noVideos']);
+Route::get('courses/count', [CategoryController::class, 'count']);
+Route::apiResource('courses', CourseController::class)->only(['index', 'show']);
 
-        // COMMENTS: READ = PUBLIC, WRITE = PROTECTED
-        Route::get('comments', [CommentController::class, 'index']);        // ← Public: everyone sees
-        Route::get('likes', [LikeController::class, 'show']);               // ← Public
-        Route::get('shares/count', [ShareController::class, 'count']);      // ← Public
+// COMMENTS: READ = PUBLIC, WRITE = PROTECTED
+Route::get('comments', [CommentController::class, 'index']);        // ← Public: everyone sees
+Route::get('likes', [LikeController::class, 'show']);               // ← Public
+Route::get('shares/count', [ShareController::class, 'count']);      // ← Public
 
-        // Auth (public)
-        Route::post('/login', [AuthController::class, 'login']);
-        Route::post('/register', [AuthController::class, 'register']);
+// Auth (public)
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
-        // Route::post('/payment/webhook', [PaymentController::class, 'handleWebhook']);
-        // Route::get('/payment/callback', [PaymentController::class, 'callback'])->name('payment.callback');
-        // // ====================================
-        // PROTECTED ROUTES (REQUIRES LOGIN)
-        // ====================================
-        Route::middleware('auth:sanctum')->group(function () {
-        Route::post('categories', [CategoryController::class, 'store']);
-        Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
+// Route::post('/payment/webhook', [PaymentApiController::class, 'handleWebhook']);
+// Route::get('/payment/callback', [PaymentApiController::class, 'callback'])->name('payment.callback');
+// // ====================================
+// PROTECTED ROUTES (REQUIRES LOGIN)
+// ====================================
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('categories', [CategoryController::class, 'store']);
+    Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
 
 
 
-        Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware('auth:sanctum')->group(function () {
         Route::delete('books/{book}', [BookController::class, 'destroy']);
         Route::post('/user-profile-update', [AuthController::class, 'updateProfile']); // New
         Route::get('/user-profile', [AuthController::class, 'profile']); // New
 
-            });
+    });
 
-        Route::prefix('vendor')->group(function () {
+    Route::prefix('vendor')->group(function () {
         Route::get('/profile', [VendorApiController::class, 'profile']);
         Route::post('/update-profile', [VendorApiController::class, 'updateProfile']); // New
         Route::get('/shops', [VendorApiController::class, 'listShops']);
         Route::post('/shops', [VendorApiController::class, 'addShop']);
         // FIX IS HERE: Add 'shops/' before the {shop} parameter
-            Route::put('/shops/{shop}', [VendorApiController::class, 'update']); 
-            
-            // Delete Route
-            Route::delete('/shops/{bookshop}', [VendorApiController::class, 'deleteShop']);
-            
-        });
+        Route::put('/shops/{shop}', [VendorApiController::class, 'update']);
+
+        // Delete Route
+        Route::delete('/shops/{bookshop}', [VendorApiController::class, 'deleteShop']);
+    });
     Route::post('/vendor/register', [VendorApiController::class, 'registerVendor']);
 
 
@@ -92,15 +90,15 @@ use App\Http\Controllers\Api\VendorOrderController;
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me/enrolled-courses', [AuthController::class, 'enrolledCourses']);
     Route::put('/me/profile', [AuthController::class, 'updateProfile']);
-        // Route::post('/me/profile', [AuthController::class, 'updateProfile']);
+    // Route::post('/me/profile', [AuthController::class, 'updateProfile']);
     Route::apiResource('bookshops', BookshopController::class);
 
 
-    Route::middleware('auth:sanctum')->post('/payment/initialize', [PaymentController::class, 'initialize']);
+    Route::middleware('auth:sanctum')->post('/payment/initialize', [PaymentApiController::class, 'initialize']);
     // ONLY LOGGED-IN USERS CAN POST COMMENTS
     Route::post('comments', [CommentController::class, 'store']);     // ← PROTECTED
     Route::post('/books', [BookController::class, 'store']);
-   
+
     // Likes & Shares (require login)
     Route::post('likes/toggle', [LikeController::class, 'toggle']);
     Route::post('shares', [ShareController::class, 'store']);
@@ -112,32 +110,32 @@ use App\Http\Controllers\Api\VendorOrderController;
 
 
 
-        Route::middleware('auth:sanctum')->group(function () {
-    
-        // Vendor Specific Routes
-        Route::prefix('vendor')->group(function () {
+Route::middleware('auth:sanctum')->group(function () {
+
+    // Vendor Specific Routes
+    Route::prefix('vendor')->group(function () {
         Route::get('/orders', [VendorOrderController::class, 'index']);
         Route::get('/popular-books', [VendorOrderController::class, 'getPopularBooks']);
         Route::patch('/orders/{id}/status', [VendorOrderController::class, 'updateStatus']);
-        });
-
-        // Customer Specific Routes
-        Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
-        Route::get('/myorders', [OrderController::class, 'index']); // New endpoint for customer's orders
-        });
-        Route::middleware(['auth:sanctum'])->group(function () {
-        Route::get('/admin/users', [AdminUserController::class, 'index']);
-        Route::patch('/admin/users/{user}/toggle', [AdminUserController::class, 'toggleStatus']);
-        });
-
-        Route::middleware('auth:sanctum')->group(function () {
-        // Library Endpoints
-        Route::get('/library', [UserLibraryController::class, 'index']);
-        Route::get('/library/{libraryItem}/download', [UserLibraryController::class, 'download']);
-        // Route::get('/stats', [StatsController::class, 'index']);
-        // Payment Endpoints
-        Route::post('/payments/initialize', [PaymentApiController::class, 'initialize']);
     });
 
-    // The Callback is usually a GET request from Paystack
-    Route::get('/payments/callback', [PaymentApiController::class, 'callback'])->name('payment.callback');
+    // Customer Specific Routes
+    Route::get('/my-orders/{id}', [VendorOrderController::class, 'show']); // Reuse logic for single order
+    Route::get('/myorders', [OrderController::class, 'index']); // New endpoint for customer's orders
+});
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/admin/users', [AdminUserController::class, 'index']);
+    Route::patch('/admin/users/{user}/toggle', [AdminUserController::class, 'toggleStatus']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Library Endpoints
+    Route::get('/library', [UserLibraryController::class, 'index']);
+    Route::get('/library/{libraryItem}/download', [UserLibraryController::class, 'download']);
+    // Route::get('/stats', [StatsController::class, 'index']);
+    // Payment Endpoints
+    Route::post('/payments/initialize', [PaymentApiController::class, 'initialize']);
+});
+
+// The Callback is usually a GET request from Paystack
+Route::get('/payments/callback', [PaymentApiController::class, 'callback'])->name('payment.callback');
