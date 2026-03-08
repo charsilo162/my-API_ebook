@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Traits\HasUuid;
@@ -7,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Vendor extends Model
 {
-    use HasFactory,HasUuid;
+    use HasFactory, HasUuid;
 
     // A Vendor is a profile for a User
     protected $fillable = ['user_id', 'store_name', 'bio', 'balance'];
@@ -20,7 +21,7 @@ class Vendor extends Model
     // A Vendor has many Physical Branches (Bookshops)
     public function bookshops()
     {
-        return $this->hasMany(Bookshop::class, 'vendor_id'); 
+        return $this->hasMany(BookShop::class, 'vendor_id');
     }
 
     public function user()

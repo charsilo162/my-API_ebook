@@ -50,7 +50,7 @@ Route::get('likes', [LikeController::class, 'show']);               // ← Publi
 Route::get('shares/count', [ShareController::class, 'count']);      // ← Public
 
 // Auth (public)
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/register', [AuthController::class, 'register']);
 
 // Route::post('/payment/webhook', [PaymentApiController::class, 'handleWebhook']);
