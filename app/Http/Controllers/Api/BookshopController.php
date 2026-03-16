@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -15,8 +16,9 @@ class BookshopController extends Controller
     {
         $vendor = Auth::user()->vendorProfile;
         
+        // Safety Check: Ensure the user actually has a vendor profile
         if (!$vendor) {
-            return response()->json(['message' => 'Vendor profile not found'], 404);
+            return response()->json(['message' => 'Vendor profile not found. Please register as a vendor first.'], 404);
         }
 
         return response()->json($vendor->bookshops);
@@ -35,6 +37,13 @@ class BookshopController extends Controller
         ]);
 
         $vendor = Auth::user()->vendorProfile;
+
+        // Safety Check: Prevent the SQL error if vendor profile is missing
+        if (!$vendor) {
+            return response()->json(['message' => 'Unauthorized. No vendor profile linked to this account.'], 403);
+        }
+
+        // Using the relationship ensures 'vendor_id' is filled correctly automatically
         $shop = $vendor->bookshops()->create($data);
 
         return response()->json([
@@ -48,9 +57,11 @@ class BookshopController extends Controller
      */
     public function update(Request $request, Bookshop $bookshop)
     {
-        // Security check
-        if ($bookshop->vendor_id !== Auth::user()->vendorProfile->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $vendor = Auth::user()->vendorProfile;
+
+        // Security check: Ensure the vendor profile exists AND owns this shop
+        if (!$vendor || $bookshop->vendor_id !== $vendor->id) {
+            return response()->json(['message' => 'Unauthorized or Vendor profile missing'], 403);
         }
 
         $data = $request->validate([
@@ -66,15 +77,17 @@ class BookshopController extends Controller
     }
 
     /**
-     * Delete a shop (Check for inventory first)
+     * Delete a shop
      */
     public function destroy(Bookshop $bookshop)
     {
-        if ($bookshop->vendor_id !== Auth::user()->vendorProfile->id) {
+        $vendor = Auth::user()->vendorProfile;
+
+        if (!$vendor || $bookshop->vendor_id !== $vendor->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Professional check: Don't delete if books are still mapped to this shop
+        // Don't delete if books are still mapped to this shop
         if ($bookshop->bookVariants()->count() > 0) {
             return response()->json([
                 'message' => 'Cannot delete shop. You have books assigned to this location.'

@@ -22,9 +22,74 @@ class BookController extends Controller
     public function __construct(CloudinaryService $cloudinaryService)
     {
         $this->cloudinaryService = $cloudinaryService;
-        Log::debug('[BookController] Instantiated', ['class' => static::class]);
+       // Log::debug('[BookController] Instantiated', ['class' => static::class]);
     }
 
+
+    //     public function index(Request $request)
+    // {
+  
+    //     $query = Book::with(['category', 'variants', 'vendor'])->withMin('variants', 'price');
+
+    //     if (!$request->boolean('include_inactive')) {
+    //         $query->where('is_active', true);
+    //     } // Adds 'variants_min_price' attribute automatically
+
+    //     // 2. Search Logic
+    //     if ($request->filled('search')) {
+    //         $search = $request->query('search');
+    //         $query->where(function ($q) use ($search) {
+    //             $q->where('title', 'like', "%{$search}%")->orWhere('author_name', 'like', "%{$search}%");
+    //         });
+    //     }
+
+
+    //         // 3. Category Filter
+    //         if ($request->filled('category_id')) {
+    //             // First, find the ACTUAL integer ID of that category
+    //             $category = Category::where('uuid', $request->category_id)->first();
+
+    //             if ($category) {
+    //                 // Now filter the books table directly by the integer ID
+    //                 $query->where('category_id', $category->id);
+    //             } else {
+    //                 // If the UUID doesn't exist, force empty results
+    //                 $query->whereRaw('1 = 0');
+    //             }
+    //         }
+
+    //     if ($request->filled('status')) {
+    //         if ($request->status === 'active') {
+    //             $query->where('is_active', true);
+    //         }
+
+    //         if ($request->status === 'inactive') {
+    //             $query->where('is_active', false);
+    //         }
+    //     }
+
+    //     // 4. Professional Sorting
+    //     // Default to latest if no order_by is provided
+    //     if ($request->filled('order_by')) {
+    //         $sortParams = explode(',', $request->query('order_by'));
+    //         $field = $sortParams[0];
+    //         $direction = $sortParams[1] ?? 'asc';
+    //         $query->orderBy($field, $direction);
+    //     } else {
+    //         $query->latest();
+    //     }
+
+    //     // 5. Execution (Limit vs Paginate)
+    //     $perPage = $request->query('per_page', 10);
+
+    //     if ($request->filled('limit')) {
+    //         $books = $query->limit($request->query('limit'))->get();
+    //     } else {
+    //         $books = $query->paginate($perPage);
+    //     }
+
+    //     return BookResource::collection($books);
+    // }
     public function index(Request $request)
     {
         // 1. Initialize query with Eager Loading
@@ -82,257 +147,161 @@ class BookController extends Controller
 
         return BookResource::collection($books);
     }
-
-    public function store(StoreBookRequest $request)
+    public function vendor(Request $request)
     {
-        $data = $request->validated();
+        // 1. Get the authenticated user's vendor profile
+        $vendorProfile = Auth::user()->vendorProfile;
 
-        Log::info('[BookController::store] Request received', [
-            'user_id' => Auth::id(),
-            'title' => $data['title'],
-            'category_id' => $data['category_id'],
-            'author_name' => $data['author_name'],
-            'variants_count' => count($data['variants']),
-            'variant_types' => collect($data['variants'])->pluck('type'),
-        ]);
+        // Guard: Ensure they actually have a vendor profile
+        if (!$vendorProfile) {
+            return response()->json([
+                'message' => 'Vendor profile not found.'
+            ], 403);
+        }
 
-        // ── Guard: Physical variant requires a registered bookshop ────────────
-        $hasPhysicalVariant = collect($data['variants'])->contains('type', 'physical');
+        // 2. Initialize query using the REAL vendor_id from the profile
+        $query = Book::where('vendor_id', $vendorProfile->id) 
+            ->with(['category', 'variants'])
+            ->withMin('variants', 'price');
 
-        Log::debug('[BookController::store] Physical variant check', [
-            'has_physical_variant' => $hasPhysicalVariant,
-        ]);
+        // 3. Status Filtering
+        if ($request->filled('status')) {
+            if ($request->status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($request->status === 'inactive') {
+                $query->where('is_active', false);
+            }
+        }
 
-        if ($hasPhysicalVariant) {
-            $vendorProfile = Auth::user()->vendorProfile;
+        // 4. Professional Sorting
+        if ($request->filled('order_by')) {
+            $sortParams = explode(',', $request->query('order_by'));
+            $field = $sortParams[0];
+            $direction = $sortParams[1] ?? 'asc';
+            $query->orderBy($field, $direction);
+        } else {
+            $query->latest();
+        }
 
-            Log::debug('[BookController::store] Checking vendor profile for bookshop', [
-                'user_id' => Auth::id(),
-                'vendor_profile_exists' => $vendorProfile !== null,
-            ]);
+        // 5. Execution
+        $perPage = $request->query('per_page', 10);
+
+        if ($request->filled('limit')) {
+            $books = $query->limit($request->query('limit'))->get();
+        } else {
+            $books = $query->paginate($perPage);
+        }
+
+        return BookResource::collection($books);
+    }
+        public function store(StoreBookRequest $request)
+        {
+            $data = $request->validated();
+
+            // ── Step 0: Get the Correct Vendor ID ─────────────────────────────────────
+            // We must find the vendor profile record belonging to this user
+            $vendorProfile = Auth::user()->vendorProfile; 
 
             if (!$vendorProfile) {
-                Log::warning('[BookController::store] User has no vendor profile', [
-                    'user_id' => Auth::id(),
-                ]);
-                return response()->json(
-                    [
-                        'message' => 'You must register a physical bookshop location before listing physical books.',
-                    ],
-                    422,
-                );
+                return response()->json([
+                    'message' => 'You must be registered as a vendor to list books.',
+                ], 403);
             }
 
-            $hasShop = $vendorProfile->bookshops()->exists();
+            $vendorId = $vendorProfile->id; // This is the ID from the 'vendors' table
 
-            Log::debug('[BookController::store] Bookshop existence check', [
+            Log::info('[BookController::store] Request received', [
                 'user_id' => Auth::id(),
-                'has_shop' => $hasShop,
+                'vendor_id' => $vendorId,
+                'title' => $data['title'],
             ]);
 
-            if (!$hasShop) {
-                Log::warning('[BookController::store] Physical variant rejected — no bookshop registered', [
-                    'user_id' => Auth::id(),
-                ]);
-                return response()->json(
-                    [
+            // ── Guard: Physical variant requires a registered bookshop ────────────
+            $hasPhysicalVariant = collect($data['variants'])->contains('type', 'physical');
+
+            if ($hasPhysicalVariant) {
+                // We already have $vendorProfile from above
+                $hasShop = $vendorProfile->bookshops()->exists();
+
+                if (!$hasShop) {
+                    return response()->json([
                         'message' => 'You must register a physical bookshop location before listing physical books.',
-                    ],
-                    422,
-                );
-            }
-        }
-
-        // ── Guard: Duplicate variant types (belt-and-suspenders after validation) ─
-        $types = collect($data['variants'])->pluck('type');
-        $hasDupes = $types->count() !== $types->unique()->count();
-
-        Log::debug('[BookController::store] Duplicate variant type check', [
-            'types' => $types->toArray(),
-            'has_dupes' => $hasDupes,
-        ]);
-
-        if ($hasDupes) {
-            Log::warning('[BookController::store] Duplicate variant types detected', [
-                'types' => $types->toArray(),
-            ]);
-            return response()->json(
-                [
-                    'message' => 'Validation Error',
-                    'errors' => [
-                        'variants' => ['A book cannot have duplicate formats. You can only have one Physical and one Digital version.'],
-                    ],
-                ],
-                422,
-            );
-        }
-
-        // ── DB Transaction ────────────────────────────────────────────────────
-        Log::info('[BookController::store] Starting DB transaction');
-
-        try {
-            return DB::transaction(function () use ($request, $data) {
-                // ── Step 1: Upload cover image ────────────────────────────────
-                Log::debug('[BookController::store] Uploading cover image', [
-                    'original_name' => $request->file('cover_image')?->getClientOriginalName(),
-                    'size_bytes' => $request->file('cover_image')?->getSize(),
-                    'mime' => $request->file('cover_image')?->getMimeType(),
-                ]);
-
-                $coverUrl = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
-
-                if (!$coverUrl) {
-                    Log::error('[BookController::store] Cover image upload returned null — aborting transaction', [
-                        'user_id' => Auth::id(),
-                        'title' => $data['title'],
-                    ]);
-                    // Throwing inside a transaction rolls it back automatically
-                    throw new \RuntimeException('Cover image upload failed. Please try again.');
+                    ], 422);
                 }
+            }
 
-                Log::info('[BookController::store] Cover image uploaded', ['cover_url' => $coverUrl]);
+            // ── Guard: Duplicate variant types ─────────────────────────────────────
+            $types = collect($data['variants'])->pluck('type');
+            if ($types->count() !== $types->unique()->count()) {
+                return response()->json([
+                    'message' => 'Validation Error',
+                    'errors' => ['variants' => ['A book cannot have duplicate formats.']],
+                ], 422);
+            }
 
-                // ── Step 2: Create the Book record ────────────────────────────
-                $slug = Str::slug($data['title']) . '-' . time();
+            // ── DB Transaction ────────────────────────────────────────────────────
+            try {
+                return DB::transaction(function () use ($request, $data, $vendorId) {
+                    
+                    // ── Step 1: Upload cover image ────────────────────────────────
+                    $coverUrl = $this->cloudinaryService->uploadFile($request->file('cover_image'), 'books/covers');
 
-                Log::debug('[BookController::store] Creating Book record', [
-                    'user_id' => Auth::id(),
-                    'category_id' => $data['category_id'],
-                    'title' => $data['title'],
-                    'slug' => $slug,
-                    'cover_url' => $coverUrl,
-                ]);
-
-                $book = Book::create([
-                    'vendor_id' => Auth::id(),
-                    'category_id' => $data['category_id'],
-                    'title' => $data['title'],
-                    'slug' => $slug,
-                    'author_name' => $data['author_name'],
-                    'description' => $data['description'],
-                    'cover_image' => $coverUrl,
-                ]);
-
-                Log::info('[BookController::store] Book record created', [
-                    'book_id' => $book->id,
-                    'slug' => $book->slug,
-                ]);
-
-                // ── Step 3: Create Variants ───────────────────────────────────
-                foreach ($data['variants'] as $index => $variantData) {
-                    Log::debug('[BookController::store] Processing variant', [
-                        'book_id' => $book->id,
-                        'index' => $index,
-                        'type' => $variantData['type'],
-                        'price' => $variantData['price'],
-                    ]);
-
-                    $filePath = null;
-
-                    if ($variantData['type'] === 'digital') {
-                        $fileKey = "variants.{$index}.file";
-                        $fileExists = $request->hasFile($fileKey);
-
-                        Log::debug('[BookController::store] Digital variant file check', [
-                            'book_id' => $book->id,
-                            'index' => $index,
-                            'file_key' => $fileKey,
-                            'file_exists' => $fileExists,
-                        ]);
-
-                        if ($fileExists) {
-                            $uploadFile = $request->file($fileKey);
-
-                            Log::info('[BookController::store] Uploading digital file', [
-                                'book_id' => $book->id,
-                                'index' => $index,
-                                'original_name' => $uploadFile->getClientOriginalName(),
-                                'size_bytes' => $uploadFile->getSize(),
-                                'mime' => $uploadFile->getMimeType(),
-                                'extension' => $uploadFile->getClientOriginalExtension(),
-                            ]);
-
-                            $filePath = $this->cloudinaryService->uploadFile($uploadFile, 'books/files', 'raw');
-
-                            if (!$filePath) {
-                                Log::error('[BookController::store] Digital file upload returned null — aborting transaction', [
-                                    'book_id' => $book->id,
-                                    'index' => $index,
-                                    'file' => $uploadFile->getClientOriginalName(),
-                                ]);
-                                throw new \RuntimeException("Digital file upload failed for variant index {$index}.");
-                            }
-
-                            Log::info('[BookController::store] Digital file uploaded', [
-                                'book_id' => $book->id,
-                                'index' => $index,
-                                'file_path' => $filePath,
-                            ]);
-                        } else {
-                            // This should have been caught by validation, but log defensively
-                            Log::warning('[BookController::store] Digital variant has no file after validation — proceeding with null file_path', [
-                                'book_id' => $book->id,
-                                'index' => $index,
-                            ]);
-                        }
+                    if (!$coverUrl) {
+                        throw new \RuntimeException('Cover image upload failed.');
                     }
 
-                    // ── Assemble variant payload ──────────────────────────────
-                    $stockQty = $variantData['type'] === 'digital' ? -1 : $variantData['stock'] ?? 0;
-                    $bookshopId = $variantData['type'] === 'physical' ? $variantData['bookshop_id'] ?? null : null;
+                    // ── Step 2: Create the Book record ────────────────────────────
+                    $slug = Str::slug($data['title']) . '-' . time();
 
-                    $variantPayload = [
-                        'type' => $variantData['type'],
-                        'price' => $variantData['price'],
-                        'discount_price' => $variantData['discount_price'] ?? null,
-                        'stock_quantity' => $stockQty,
-                        'file_path' => $filePath,
-                        'bookshop_id' => $bookshopId,
-                    ];
-
-                    Log::debug('[BookController::store] Creating BookVariant record', [
-                        'book_id' => $book->id,
-                        'index' => $index,
-                        'payload' => $variantPayload,
+                    $book = Book::create([
+                        'vendor_id'   => $vendorId, // FIXED: Using the Vendor ID, not User ID
+                        'category_id' => $data['category_id'],
+                        'title'       => $data['title'],
+                        'slug'        => $slug,
+                        'author_name' => $data['author_name'],
+                        'description' => $data['description'],
+                        'cover_image' => $coverUrl,
                     ]);
 
-                    $variant = $book->variants()->create($variantPayload);
+                    // ── Step 3: Create Variants ───────────────────────────────────
+                    foreach ($data['variants'] as $index => $variantData) {
+                        $filePath = null;
 
-                    Log::info('[BookController::store] BookVariant record created', [
-                        'book_id' => $book->id,
-                        'variant_id' => $variant->id,
-                        'type' => $variant->type,
-                    ]);
-                }
+                        if ($variantData['type'] === 'digital') {
+                            $fileKey = "variants.{$index}.file";
+                            if ($request->hasFile($fileKey)) {
+                                $filePath = $this->cloudinaryService->uploadFile($request->file($fileKey), 'books/files', 'raw');
+                                if (!$filePath) {
+                                    throw new \RuntimeException("Digital file upload failed for variant {$index}.");
+                                }
+                            }
+                        }
 
-                Log::info('[BookController::store] Transaction committed successfully', [
-                    'book_id' => $book->id,
-                    'user_id' => Auth::id(),
-                    'variants_count' => $book->variants()->count(),
+                        $book->variants()->create([
+                            'type'           => $variantData['type'],
+                            'price'          => $variantData['price'],
+                            'discount_price' => $variantData['discount_price'] ?? null,
+                            'stock_quantity' => $variantData['type'] === 'digital' ? -1 : ($variantData['stock'] ?? 0),
+                            'file_path'      => $filePath,
+                            'bookshop_id'    => $variantData['type'] === 'physical' ? ($variantData['bookshop_id'] ?? null) : null,
+                        ]);
+                    }
+
+                    return new BookResource($book->load(['variants', 'category', 'vendor']));
+                });
+
+            } catch (\Throwable $e) {
+                Log::error('[BookController::store] Transaction FAILED', [
+                    'message' => $e->getMessage(),
+                    'user_id' => Auth::id()
                 ]);
 
-                return new BookResource($book->load(['variants', 'category', 'vendor']));
-            });
-        } catch (\Throwable $e) {
-            Log::error('[BookController::store] Transaction FAILED and rolled back', [
-                'exception_class' => get_class($e),
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'user_id' => Auth::id(),
-                'title' => $data['title'] ?? 'unknown',
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json(
-                [
-                    'message' => 'An error occurred while creating the book. Please try again.',
-                    'detail' => app()->isLocal() ? $e->getMessage() : null, // hide internals in production
-                ],
-                500,
-            );
+                return response()->json([
+                    'message' => 'An error occurred while creating the book.',
+                    'detail'  => app()->isLocal() ? $e->getMessage() : null,
+                ], 500);
+            }
         }
-    }
 
     public function update(UpdateBookRequest $request, Book $book)
     {

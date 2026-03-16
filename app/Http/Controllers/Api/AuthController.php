@@ -102,6 +102,16 @@ class AuthController extends Controller
             ], 201);
         });
     }
+
+    public function status()
+        {
+            $vendor = Auth::user()->vendorProfile;
+
+            return response()->json([
+                'is_vendor' => $vendor ? true : false,
+                'vendor' => $vendor
+            ]);
+        }
 //    public function updateProfile(Request $request)
 //         {
 //             $user = $request->user();

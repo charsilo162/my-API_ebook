@@ -65,7 +65,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/vendor/books', [BookController::class, 'vendor']);
+
         Route::delete('books/{book}', [BookController::class, 'destroy']);
+
         Route::post('/user-profile-update', [AuthController::class, 'updateProfile']); // New
         Route::get('/user-profile', [AuthController::class, 'profile']); // New
 
@@ -104,6 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('shares', [ShareController::class, 'store']);
     Route::get('/my-library', [UserLibraryController::class, 'index']);
     Route::get('/my-library/{libraryItem}/download', [UserLibraryController::class, 'download']);
+    Route::get('/vendor/status', [AuthController::class, 'status']);
 });
 
 

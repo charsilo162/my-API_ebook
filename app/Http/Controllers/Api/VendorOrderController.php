@@ -81,33 +81,38 @@ public function updateStatus(Request $request, $id)
         });
     }
 
-public function getPopularBooks(Request $request) // Inject the request
-{
-    $vendorId = Auth::id();
-    
-    // Explicitly get the page number from the request
-    $page = $request->input('page', 1);
-   // \Log::info("Controller received page: " . $request->input('page'));
+    public function getPopularBooks(Request $request)
+        {
+            // 1. Get the actual Vendor ID from the relationship
+            $vendorProfile = Auth::user()->vendorProfile;
 
-    $paginatedBooks = Book::where('vendor_id', $vendorId)
-        ->with(['variants'])
-        ->withCount('orderItems as total_sales')
-        ->orderBy('total_sales', 'desc')
-        // Pass the page to the paginate method
-        ->paginate(10, ['*'], 'page', $page); 
+            if (!$vendorProfile) {
+                return response()->json(['message' => 'Vendor profile not found.'], 403);
+            }
 
-    $paginatedBooks->getCollection()->transform(function ($book) {
-        return [
-            'title' => $book->title,
-            'author' => $book->author_name,
-            'cover_image' => $book->cover_image ?: asset('storage/images/d7.jpg'),
-            'starting_price' => $book->variants->min('price') ?? 0,
-            'formats' => $book->variants->map(fn($v) => ['type' => $v->type]),
-            'sales_count' => (int) $book->total_sales,
-        ];
-    });
+            $page = $request->input('page', 1);
 
-    return response()->json($paginatedBooks);
-}
+            // 2. Query using the correct vendor_id and optimize price fetching
+            $paginatedBooks = Book::where('vendor_id', $vendorProfile->id) // FIXED: Use Profile ID
+                ->with(['variants'])
+                ->withMin('variants', 'price') // Database-level min price is faster
+                ->withCount('orderItems as total_sales')
+                ->orderBy('total_sales', 'desc')
+                ->paginate(10, ['*'], 'page', $page); 
+
+            // 3. Transform the collection
+            $paginatedBooks->getCollection()->transform(function ($book) {
+                return [
+                    'title' => $book->title,
+                    'author' => $book->author_name,
+                    'cover_image' => $book->cover_image ?: asset('storage/images/d7.jpg'),
+                    'starting_price' => (float) ($book->variants_min_price ?? 0),
+                    'formats' => $book->variants->map(fn($v) => ['type' => $v->type]),
+                    'sales_count' => (int) $book->total_sales,
+                ];
+            });
+
+            return response()->json($paginatedBooks);
+        }
         
 }

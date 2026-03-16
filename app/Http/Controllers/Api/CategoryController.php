@@ -138,29 +138,32 @@ class CategoryController extends Controller
 
 
 
-    public function getCategories()
-        {
-            // 1. Query only 8 random categories that actually have books
-            $categories = Category::withCount('books')
-                ->whereHas('books') 
-                ->inRandomOrder() 
-                ->limit(8)        
-                ->get()
-                ->map(function ($category) {
-                    return [
-                        'title' => $category->name,
-                        'count' => $category->books_count,
-                        
-                        'image' => $category->image_path 
-                            ? asset('storage/' . $category->image_path) 
-                            : asset('storage/images/d5.jpg'),
-                          'url' => config('app.frontend_url') . '/categories?category=' . $category->uuid,
-                        //'url' => url('/categories/' . $category->slug),
-                    ];
-                });
+public function getCategories()
+{
+    // 1. Query 8 random categories that have at least one ACTIVE book
+    $categories = Category::withCount(['books' => function ($query) {
+            // Only count books that are active
+            $query->where('is_active', true);
+        }])
+        ->whereHas('books', function ($query) {
+            // Only include categories that have at least one active book
+            $query->where('is_active', true);
+        }) 
+        ->inRandomOrder() 
+        ->limit(8)        
+        ->get()
+        ->map(function ($category) {
+            return [
+                'title' => $category->name,
+                'count' => $category->books_count, // Now only represents active books
+                'image' => $category->image_path 
+                    ? asset('storage/' . $category->image_path) 
+                    : asset('storage/images/d5.jpg'),
+                'url' => config('app.frontend_url') . '/categories?category=' . $category->uuid,
+            ];
+        });
 
-            return response()->json(['categories' => $categories]);
-        }
-
+    return response()->json(['categories' => $categories]);
+}
 
 }

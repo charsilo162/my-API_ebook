@@ -17,11 +17,11 @@ class CloudinaryService
 
     public function __construct()
     {
-        Log::debug('[CloudinaryService] Initialising service', [
-            'cloud_name_set' => !empty(config('cloudinary.cloud_name')),
-            'api_key_set'    => !empty(config('cloudinary.api_key')),
-            'api_secret_set' => !empty(config('cloudinary.api_secret')),
-        ]);
+        // Log::debug('[CloudinaryService] Initialising service', [
+        //     'cloud_name_set' => !empty(config('cloudinary.cloud_name')),
+        //     'api_key_set'    => !empty(config('cloudinary.api_key')),
+        //     'api_secret_set' => !empty(config('cloudinary.api_secret')),
+        // ]);
 
         try {
             $this->cloudinary = new Cloudinary([
@@ -35,14 +35,14 @@ class CloudinaryService
                 ],
             ]);
 
-            Log::debug('[CloudinaryService] Cloudinary SDK instantiated successfully');
+            //Log::debug('[CloudinaryService] Cloudinary SDK instantiated successfully');
         } catch (\Throwable $e) {
-            Log::critical('[CloudinaryService] Failed to instantiate Cloudinary SDK', [
-                'error' => $e->getMessage(),
-                'file'  => $e->getFile(),
-                'line'  => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            // Log::critical('[CloudinaryService] Failed to instantiate Cloudinary SDK', [
+            //     'error' => $e->getMessage(),
+            //     'file'  => $e->getFile(),
+            //     'line'  => $e->getLine(),
+            //     'trace' => $e->getTraceAsString(),
+            // ]);
             throw $e;
         }
     }
@@ -76,10 +76,10 @@ class CloudinaryService
     {
         $originalName = null;
 
-        Log::info('[CloudinaryService::uploadFile] Upload initiated', [
-            'folder'              => $folder,
-            'force_resource_type' => $forceResourceType,
-        ]);
+        // Log::info('[CloudinaryService::uploadFile] Upload initiated', [
+        //     'folder'              => $folder,
+        //     'force_resource_type' => $forceResourceType,
+        // ]);
 
         try {
             // ── 1. Validate the incoming file object ──────────────────────────
