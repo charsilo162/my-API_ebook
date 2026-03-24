@@ -13,7 +13,7 @@ class ShowcaseController extends Controller
 
     public function getShowcase()
         {
-            $limit = 4;
+            $limit = 2;
 
             // 1. Try to get real Discount Deals
             $discounts = Book::where('is_active', true)

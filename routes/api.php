@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\VendorOrderController;
 // ====================================
 // PUBLIC ROUTES (NO LOGIN REQUIRED)
 // ====================================
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/vendor/showcase', [ShowcaseController::class, 'getShowcase']);
 Route::get('/public/categories', [CategoryController::class, 'getCategories']);
 Route::get('categories/random', [CategoryController::class, 'random']);

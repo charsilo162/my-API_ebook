@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use App\Services\CloudinaryService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -276,6 +278,53 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Logged out successfully']);
     }
+    public function forgotPassword(Request $request)
+        {
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+            ]);
 
+            $status = Password::sendResetLink(
+                $request->only('email')
+            );
+
+            if ($status === Password::RESET_LINK_SENT) {
+                return response()->json([
+                    'message' => 'Password reset link sent to your email'
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Unable to send reset link'
+            ], 500);
+        }
+
+
+
+    public function resetPassword(Request $request)
+            
+            {
+                $request->validate([
+                    'token' => 'required',
+                    'email' => 'required|email',
+                    'password' => 'required|min:6|confirmed',
+                ]);
+
+                $status = Password::reset(
+                    $request->only('email', 'password', 'password_confirmation', 'token'),
+                    function ($user, $password) {
+                        $user->forceFill([
+                            'password' => Hash::make($password),
+                            'remember_token' => Str::random(60),
+                        ])->save();
+                    }
+                );
+
+                if ($status === Password::PASSWORD_RESET) {
+                    return response()->json(['message' => 'Password reset successful']);
+                }
+
+                return response()->json(['message' => 'Invalid token or email'], 400);
+            }
 
 }
